@@ -31,14 +31,24 @@ Campos sem dados no HTML (metal das comemorativas, grau, preços, fotos, km_ref,
 Ver `.env.local.example` — Supabase + Anthropic + Resend.
 Seed de dados requer `SUPABASE_SERVICE_ROLE_KEY` (só local, nunca versionada).
 
+## Autenticação (estado actual)
+- **Só existe um gate de password de UI**, não auth real. `middleware.ts` protege
+  todas as rotas excepto `/login` e assets; a password vive em `APP_PASSWORD`
+  (.env.local + Vercel), comparada server-side numa server action em
+  `app/(auth)/login/page.tsx`. O cookie de sessão (`numis_session`) é o SHA-256
+  da password (`lib/auth-gate.ts`). httpOnly, válido 30 dias.
+- Isto é **apenas um gate para testes** — não há utilizadores, registo nem
+  `user_id` por linha. Auth real (Supabase Auth) fica para depois.
+
 ## Dívida técnica
+- **Gate de password ≠ segurança real.** É só uma barreira de UI. Não substitui auth.
 - **RLS da `collection` aberto a `anon`** (migration `006_collection_anon_temp.sql`):
-  enquanto não há auth, o role `anon` tem SELECT/INSERT/UPDATE na `collection`
-  (NÃO DELETE — "não tenho" é `quantidade=0`, nunca apaga linha). Isto torna a
-  colecção acessível a quem tiver o URL + anon key.
-  **O Passo C (auth) TEM de fechar isto**: aplicar `007_revert_collection_anon_PASSO_C.sql`,
-  preencher `collection.user_id` com o uid do dono, e filtrar/escrever por
-  `user_id = auth.uid()` em `lib/catalog.ts`.
+  o role `anon` tem SELECT/INSERT/UPDATE na `collection` (NÃO DELETE — "não tenho"
+  é `quantidade=0`). A anon key continua exposta no browser, logo **quem a extraia
+  pode ler/escrever a colecção mesmo passando ao lado do gate de password**.
+  **A auth real (Supabase Auth) TEM de fechar isto**: aplicar
+  `007_revert_collection_anon_PASSO_C.sql`, preencher `collection.user_id` com o
+  uid do dono, e filtrar/escrever por `user_id = auth.uid()` em `lib/catalog.ts`.
 
 ## Não fazer
 - Não criar ficheiros HTML
