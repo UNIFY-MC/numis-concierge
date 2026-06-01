@@ -27,9 +27,20 @@ Conservação usa escala europeia/Sheldon em `collection.grau` (texto livre: UNC
 
 Campos sem dados no HTML (metal das comemorativas, grau, preços, fotos, km_ref, numista_id) ficam `null` — preencher depois via Numista API, nunca inventar.
 
+## Enriquecimento Numista (uma vez, fica na BD)
+A app **nunca** chama a Numista em runtime. Os dados (fotos, peso, diâmetro,
+composição, km_ref, numista_id, tiragem) são importados **uma só vez** para o
+Supabase pelo script `scripts/enrich-numista.mjs` e a partir daí vivem na BD.
+Só se volta à API quando saem moedas novas (correr de novo; é resumível —
+salta tudo o que já tem `numista_id`).
+- Quota gratuita: 2000 req/mês. O catálogo euro (~618 coins) cabe num run.
+- `--probe` confirma o shape da API antes de gastar quota; `--limit N` corre por lotes.
+- Respostas cacheadas em `scripts/.numista-cache/` (gitignored) para re-runs baratos.
+
 ## Env vars
-Ver `.env.local.example` — Supabase + Anthropic + Resend.
-Seed de dados requer `SUPABASE_SERVICE_ROLE_KEY` (só local, nunca versionada).
+Ver `.env.local.example` — Supabase + Anthropic + Resend + Numista.
+Seed e enriquecimento requerem `SUPABASE_SERVICE_ROLE_KEY` (só local, nunca versionada).
+Enriquecimento requer `NUMISTA_API_KEY` (só local/scripts, nunca no browser).
 
 ## Design system
 A identidade visual é **Moedas do Pinto**: ver `app/globals.css` (tokens `--mp-*`).

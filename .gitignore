@@ -40,6 +40,9 @@ yarn-error.log*
 scripts/catalog-data.json
 scripts/seed-rows.json
 
+# Cache da Numista API (regenerável)
+scripts/.numista-cache/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
