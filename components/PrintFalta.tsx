@@ -1,5 +1,6 @@
 import { denomCurta } from '@/lib/types'
 import { eur } from '@/lib/valor'
+import { casaEmissor } from '@/lib/emissores'
 import type { DisplayRow } from '@/lib/types'
 import Flag from './Flag'
 
@@ -14,16 +15,12 @@ function tipoLabel(coin: DisplayRow['coin']): string {
 }
 
 function ordenar(rows: DisplayRow[]): DisplayRow[] {
-  return [...rows].sort((a, b) => {
-    // 1.º por ano (gregoriano), 2.º por valor facial da moeda
-    const ya = a.issue.ano_gregoriano ?? (parseInt(a.issue.ano, 10) || 0)
-    const yb = b.issue.ano_gregoriano ?? (parseInt(b.issue.ano, 10) || 0)
-    if (ya !== yb) return ya - yb
-    const va = a.coin.valor_facial ?? 0
-    const vb = b.coin.valor_facial ?? 0
-    if (va !== vb) return va - vb
-    return a.issue.ano.localeCompare(b.issue.ano)
-  })
+  // Dentro de cada país: casa/emissor › tipo › ano › face (igual à Tabela e ao export).
+  return [...rows].sort((a, b) =>
+    casaEmissor(a).localeCompare(casaEmissor(b), 'pt')
+    || (Number(a.coin.comemorativa) - Number(b.coin.comemorativa))
+    || ((a.issue.ano_gregoriano ?? (parseInt(a.issue.ano, 10) || 0)) - (b.issue.ano_gregoriano ?? (parseInt(b.issue.ano, 10) || 0)))
+    || ((a.coin.valor_facial ?? 0) - (b.coin.valor_facial ?? 0)))
 }
 
 export default function PrintFalta({ grupos }: { grupos: GrupoFalta[] }) {

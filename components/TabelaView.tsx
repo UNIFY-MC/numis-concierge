@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { estadoDe } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
+import { casaEmissor } from '@/lib/emissores'
 import type { DisplayRow } from '@/lib/types'
 import Flag from './Flag'
 
@@ -8,6 +9,7 @@ interface TabelaViewProps {
   rows: DisplayRow[]
   onSelect: (row: DisplayRow) => void
   onExportar: () => void
+  onImprimir: () => void
   onQuantidade: (row: DisplayRow, qtd: number) => void
   onEstado: (row: DisplayRow, formato: 'set' | 'caderneta' | null) => void
 }
@@ -21,6 +23,15 @@ function anoNum(r: DisplayRow): string {
   return Number.isFinite(n) ? String(n) : ''
 }
 
+// Ordem por defeito (igual ao print e ao export): país › casa/emissor › tipo › ano › face.
+function ordemNatural(a: DisplayRow, b: DisplayRow): number {
+  return a.coin.pais_nome.localeCompare(b.coin.pais_nome, 'pt')
+    || casaEmissor(a).localeCompare(casaEmissor(b), 'pt')
+    || (Number(a.coin.comemorativa) - Number(b.coin.comemorativa))
+    || ((a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0))
+    || ((a.coin.valor_facial ?? 0) - (b.coin.valor_facial ?? 0))
+}
+
 function valOf(r: DisplayRow, col: Col): string | number {
   switch (col) {
     case 'pais':   return r.coin.pais_nome
@@ -28,7 +39,7 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'moeda':  return r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || '') : (r.coin.denominacao ?? '')
     case 'face':   return r.coin.valor_facial ?? 0
     case 'ano':    return r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10) ?? 0
-    case 'casa':   return r.issue.casa_moeda ?? ''
+    case 'casa':   return casaEmissor(r)
     case 'estado': return estadoDe(r.item)
     case 'qtd':    return r.item?.quantidade ?? 0
     case 'valor':  return estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)
@@ -67,8 +78,9 @@ const selectCls = 'h-8 rounded-lg border border-mp-border bg-mp-surface px-2 tex
 // trava o browser. Filtros/ordenação/somas continuam sobre o conjunto completo.
 const PAGINA_TAM = 200
 
-export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, onEstado }: TabelaViewProps) {
-  const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: 'pais', dir: 1 })
+export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onEstado }: TabelaViewProps) {
+  // null = ordem natural por defeito (país›casa›tipo›ano›face); clicar numa coluna ordena por ela.
+  const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 } | null>(null)
   const [filtroPais, setFiltroPais] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<'' | 'circulacao' | 'comemorativa'>('')
   const [filtroAno, setFiltroAno] = useState('')
@@ -104,15 +116,13 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
   }, [rows, filtroPais, filtroTipo, filtroAno, filtroEstado])
 
   const ordenadas = useMemo(() => {
+    if (!sort) return [...filtradas].sort(ordemNatural)
     return [...filtradas].sort((a, b) => {
       const va = valOf(a, sort.col), vb = valOf(b, sort.col)
       let cmp = typeof va === 'number' && typeof vb === 'number'
         ? va - vb
         : String(va).localeCompare(String(vb), 'pt')
-      if (cmp === 0) {
-        cmp = a.coin.pais_nome.localeCompare(b.coin.pais_nome, 'pt')
-          || (a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0)
-      }
+      if (cmp === 0) cmp = ordemNatural(a, b)
       return cmp * sort.dir
     })
   }, [filtradas, sort])
@@ -138,13 +148,13 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
   const temFiltro = filtroPais || filtroTipo || filtroAno || filtroEstado
 
   function th(col: Col, label: string, extra = '') {
-    const ativo = sort.col === col
+    const ativo = sort?.col === col
     return (
       <th
-        onClick={() => setSort((s) => ({ col, dir: s.col === col && s.dir === 1 ? -1 : 1 }))}
+        onClick={() => setSort((s) => ({ col, dir: s?.col === col && s.dir === 1 ? -1 : 1 }))}
         className={'px-3 py-2 font-semibold cursor-pointer select-none whitespace-nowrap hover:text-mp-ink ' + extra}
       >
-        {label}{ativo ? (sort.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}
+        {label}{ativo && sort ? (sort.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}
       </th>
     )
   }
@@ -193,6 +203,12 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
             <span className="inline-flex items-center gap-1 border border-mp-caderneta rounded px-1.5 py-0.5 text-mp-caderneta font-semibold">C</span>
             <span>Caderneta</span>
           </div>
+          <button
+            onClick={onImprimir}
+            className="border border-mp-border rounded-lg px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap"
+          >
+            🖨 Imprimir em falta
+          </button>
           <button
             onClick={onExportar}
             className="border border-mp-gold rounded-lg px-3 py-2 text-sm font-semibold text-mp-gold-strong hover:bg-mp-falta-bg whitespace-nowrap"
@@ -288,7 +304,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
                     {r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}
                   </td>
                   <td className="px-3 py-1.5">{anoNum(r) || r.issue.ano}</td>
-                  <td className="px-3 py-1.5 text-mp-ink-soft">{r.issue.casa_moeda ?? '—'}</td>
+                  <td className="px-3 py-1.5 text-mp-ink-soft text-[11px]">{casaEmissor(r)}</td>
                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                     <EstadoSelector est={est} onChange={(f) => onEstado(r, f)} />
                   </td>

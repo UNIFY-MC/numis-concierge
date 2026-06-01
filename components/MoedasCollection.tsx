@@ -7,6 +7,7 @@ import {
 } from '@/lib/catalog'
 import { estadoDe } from '@/lib/types'
 import { valorReal } from '@/lib/valor'
+import { casaEmissor } from '@/lib/emissores'
 import type { DisplayRow, CatalogCoin, CollectionItem, PaisAgregado } from '@/lib/types'
 import StatsBar from './StatsBar'
 import FilterBar, { type EstadoFiltro } from './FilterBar'
@@ -259,7 +260,7 @@ export default function MoedasCollection() {
   // tens. CSV com ; e BOM UTF-8 — abre direto no Excel com acentos.
   function exportarCsv(linhasFonte: DisplayRow[] = visibleRows) {
     const cols = [
-      'País', 'Tipo', 'Denominação / Comemoração', 'Valor facial (€)', 'Ano', 'Casa da moeda',
+      'País', 'Tipo', 'Denominação / Comemoração', 'Valor facial (€)', 'Ano', 'Casa / Emissor',
       'KM#', 'Schön#', 'Peso (g)', 'Diâmetro (mm)', 'Composição', 'Numista ID',
       'Tenho?', 'Estado', 'Quantidade', 'Grau', 'Valor base (€)', 'Tiragem',
     ]
@@ -269,10 +270,11 @@ export default function MoedasCollection() {
     }
     const linhas = [...linhasFonte]
       .sort((a, b) =>
-        a.coin.pais_nome.localeCompare(b.coin.pais_nome)
+        a.coin.pais_nome.localeCompare(b.coin.pais_nome, 'pt')
+        || casaEmissor(a).localeCompare(casaEmissor(b), 'pt')
         || Number(a.coin.comemorativa) - Number(b.coin.comemorativa)
-        || (a.coin.valor_facial ?? 0) - (b.coin.valor_facial ?? 0)
-        || (a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0))
+        || (a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0)
+        || (a.coin.valor_facial ?? 0) - (b.coin.valor_facial ?? 0))
       .map((r) => {
         const est = estadoDe(r.item)
         const tenho = est !== 'naotem'
@@ -282,7 +284,7 @@ export default function MoedasCollection() {
           r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || r.coin.denominacao) : (r.coin.denominacao ?? ''),
           r.coin.valor_facial ?? '',
           r.issue.ano,
-          r.item?.casa_moeda || r.issue.casa_moeda || '',
+          casaEmissor(r),
           r.coin.km_ref ?? '',
           r.coin.schon_ref ?? '',
           r.coin.peso_g ?? '',
@@ -388,6 +390,7 @@ export default function MoedasCollection() {
           rows={visibleRows}
           onSelect={setSelecionada}
           onExportar={() => exportarCsv()}
+          onImprimir={() => setImprimir({ tipo: 'geral' })}
           onQuantidade={alterarQuantidade}
           onEstado={alterarEstado}
         />
