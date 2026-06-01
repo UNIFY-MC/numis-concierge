@@ -15,6 +15,7 @@ import SortBar, { type SortBy } from './SortBar'
 import EmissorGrid from './EmissorGrid'
 import PaisDetalhe from './PaisDetalhe'
 import ValorPorPais from './ValorPorPais'
+import TabelaView from './TabelaView'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
 import PrintFalta, { type GrupoFalta } from './PrintFalta'
 
@@ -171,6 +172,25 @@ export default function MoedasCollection() {
     }))
   }
 
+  // Atualização rápida de quantidade (vista Tabela), sem abrir o CoinSheet.
+  // Preserva o formato/grau/valor já guardados; qtd 0 → "não tem".
+  async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
+    const qtd = Math.max(0, novaQtd)
+    const atual = row.item
+    const formato = qtd === 0 ? null : (atual?.formato_posse ?? 'set')
+    const saved = await upsertCollectionItem({
+      catalogCoinId: row.coin.id,
+      catalogIssueId: row.issue.id,
+      quantidade: qtd,
+      formatoPosse: formato,
+      grau: atual?.grau ?? null,
+      valorBase: atual?.valor_base ?? null,
+      foto: atual?.foto1 ?? null,
+      notaPrivada: atual?.nota_privada ?? null,
+    })
+    setRows((prev) => prev.map((r) => (r.issue.id === row.issue.id ? { ...r, item: saved } : r)))
+  }
+
   function exportar() {
     const dados = rows
       .filter((r) => r.item)
@@ -188,6 +208,57 @@ export default function MoedasCollection() {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = 'moedas-do-pinto.json'
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  // Export do catálogo completo (tudo o que veio da Numista) lado a lado com o que
+  // tens. CSV com ; e BOM UTF-8 — abre direto no Excel com acentos.
+  function exportarCsv(linhasFonte: DisplayRow[] = visibleRows) {
+    const cols = [
+      'País', 'Tipo', 'Denominação / Comemoração', 'Valor facial (€)', 'Ano', 'Casa da moeda',
+      'KM#', 'Schön#', 'Peso (g)', 'Diâmetro (mm)', 'Composição', 'Numista ID',
+      'Tenho?', 'Estado', 'Quantidade', 'Grau', 'Valor base (€)', 'Tiragem',
+    ]
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const linhas = [...linhasFonte]
+      .sort((a, b) =>
+        a.coin.pais_nome.localeCompare(b.coin.pais_nome)
+        || Number(a.coin.comemorativa) - Number(b.coin.comemorativa)
+        || (a.coin.valor_facial ?? 0) - (b.coin.valor_facial ?? 0)
+        || (a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0))
+      .map((r) => {
+        const est = estadoDe(r.item)
+        const tenho = est !== 'naotem'
+        return [
+          r.coin.pais_nome,
+          r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação'),
+          r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || r.coin.denominacao) : (r.coin.denominacao ?? ''),
+          r.coin.valor_facial ?? '',
+          r.issue.ano,
+          r.issue.casa_moeda ?? '',
+          r.coin.km_ref ?? '',
+          r.coin.schon_ref ?? '',
+          r.coin.peso_g ?? '',
+          r.coin.diametro_mm ?? '',
+          r.coin.composicao ?? '',
+          r.coin.numista_id ?? '',
+          tenho ? 'Sim' : 'Não',
+          est === 'set' ? 'Set' : est === 'caderneta' ? 'Caderneta' : 'Não tem',
+          r.item?.quantidade ?? 0,
+          r.item?.grau ?? '',
+          r.item?.valor_base ?? '',
+          r.issue.tiragem ?? '',
+        ].map(esc).join(';')
+      })
+    const csv = '﻿' + cols.join(';') + '\n' + linhas.join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `catalogo-moedas-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -260,6 +331,7 @@ export default function MoedasCollection() {
         onEstado={setEstado}
         onPesquisa={setPesquisa}
         onExportar={exportar}
+        onExportarCsv={() => exportarCsv()}
         onImportar={importar}
       />
       <input ref={fileRef} type="file" accept="application/json" hidden onChange={onFile} />
@@ -268,6 +340,13 @@ export default function MoedasCollection() {
 
       {vista === 'valor' ? (
         <ValorPorPais paises={[...agregados.values()]} totalGeral={stats.vSet + stats.vCad} />
+      ) : vista === 'tabela' ? (
+        <TabelaView
+          rows={visibleRows}
+          onSelect={setSelecionada}
+          onExportar={() => exportarCsv()}
+          onQuantidade={alterarQuantidade}
+        />
       ) : paisAberto ? (
         <PaisDetalhe
           paisCodigo={paisAberto}

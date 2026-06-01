@@ -1,4 +1,4 @@
-export type Vista = 'emissor' | 'valor'
+export type Vista = 'emissor' | 'valor' | 'tabela'
 
 interface ViewTabsProps {
   vista: Vista
@@ -8,6 +8,7 @@ interface ViewTabsProps {
 const TABS: { v: Vista; label: string }[] = [
   { v: 'emissor', label: 'Por Emissor' },
   { v: 'valor', label: 'Valor por País' },
+  { v: 'tabela', label: 'Tabela' },
 ]
 
 export default function ViewTabs({ vista, onChange }: ViewTabsProps) {

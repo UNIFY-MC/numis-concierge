@@ -6,6 +6,7 @@ interface FilterBarProps {
   onEstado: (v: EstadoFiltro) => void
   onPesquisa: (v: string) => void
   onExportar: () => void
+  onExportarCsv: () => void
   onImportar: () => void
 }
 
@@ -18,7 +19,7 @@ const PILLS: { v: EstadoFiltro; label: string; dot?: string }[] = [
 ]
 
 export default function FilterBar({
-  estado, pesquisa, onEstado, onPesquisa, onExportar, onImportar,
+  estado, pesquisa, onEstado, onPesquisa, onExportar, onExportarCsv, onImportar,
 }: FilterBarProps) {
   return (
     <div className="flex flex-wrap gap-3 items-center mb-4">
@@ -50,10 +51,18 @@ export default function FilterBar({
 
       <div className="flex gap-2">
         <button
+          onClick={onExportarCsv}
+          className="border border-mp-border bg-mp-surface rounded-lg px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
+          title="Catálogo completo (Numista) + o que tens, para abrir no Excel"
+        >
+          ⤓ Exportar Excel
+        </button>
+        <button
           onClick={onExportar}
           className="border border-mp-border bg-mp-surface rounded-lg px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
+          title="Cópia de segurança (JSON) para reimportar"
         >
-          ⤓ Exportar
+          ⤓ Backup
         </button>
         <button
           onClick={onImportar}
