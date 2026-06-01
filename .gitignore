@@ -36,8 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Dados intermédios de seed (regeneráveis via scripts)
+scripts/catalog-data.json
+scripts/seed-rows.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-.vercel
