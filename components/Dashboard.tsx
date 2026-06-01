@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getDashboard, type DashboardData, type PontoTimeline } from '@/lib/dashboard'
+import { getDashboard, type DashboardData, type PontoTimeline, type CategoriaResumo } from '@/lib/dashboard'
 import Flag from './Flag'
 
 const FORMATO_LABEL: Record<string, string> = {
@@ -12,10 +12,16 @@ const FORMATO_DOT: Record<string, string> = {
   set: 'bg-mp-set', caderneta: 'bg-mp-caderneta', caderneta_bebe: 'bg-mp-bebe', naotem: 'bg-mp-falta',
 }
 
+// Cor de cada cartão de coleção (estilo pastel do exemplo de referência).
+const CAT_ESTILO: Record<CategoriaResumo['key'], { card: string; chip: string; barra: string }> = {
+  circulacao: { card: 'bg-mp-caderneta-bg', chip: 'text-mp-caderneta', barra: 'bg-mp-caderneta' },
+  comemorativa: { card: 'bg-mp-set-bg', chip: 'text-mp-set', barra: 'bg-mp-set' },
+  colecao: { card: 'bg-mp-bebe-bg', chip: 'text-mp-bebe', barra: 'bg-mp-bebe' },
+}
+
 function fmt(n: number, d = 2) {
   return n.toLocaleString('pt-PT', { minimumFractionDigits: d, maximumFractionDigits: d })
 }
-
 function tempoAtras(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
@@ -24,7 +30,6 @@ function tempoAtras(iso: string) {
   if (h < 24) return `há ${h}h`
   return `há ${Math.floor(h / 24)}d`
 }
-
 function greeting() {
   const h = new Date().getHours()
   if (h < 12) return 'Bom dia'
@@ -45,143 +50,157 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 md:py-12">
-      <header className="mb-8">
-        <p className="font-sans text-sm text-mp-ink-soft">{greeting()},</p>
-        <h1 className="font-serif text-3xl md:text-4xl font-semibold text-mp-ink">
-          Moedas do Pinto
-        </h1>
-        <p className="font-sans text-sm text-mp-ink-soft mt-1">
-          O estado da tua colecção de euros num relance.
-        </p>
-      </header>
+    <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ─── Coluna principal ─────────────────────────────────────────── */}
+        <div className="lg:col-span-2">
+          <header className="mb-6">
+            <p className="font-sans text-sm text-mp-ink-soft">{greeting()},</p>
+            <h1 className="font-serif text-4xl md:text-5xl font-semibold text-mp-ink leading-[1.05]">
+              Investe na tua<br />coleção
+            </h1>
+            <p className="font-sans text-sm text-mp-ink-soft mt-2">
+              O estado das tuas moedas de euro num relance.
+            </p>
+          </header>
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Kpi label="Exemplares" valor={loading ? null : `${data?.colecao.total ?? 0}`} nota="na colecção" />
-        <Kpi label="Valor facial" valor={loading ? null : `${fmt(data?.valorFacialTotal ?? 0)} €`} nota="o que tens" />
-        <Kpi label="Catálogo" valor={loading ? null : `${data?.totalCatalogo ?? 0}`} nota="tipos no DB" />
-        <Kpi
-          label="Cobertura"
-          valor={loading || !data ? null : `${Math.round((data.colecao.total / Math.max(data.totalCatalogo, 1)) * 100)}%`}
-          nota="do catálogo"
-        />
-      </section>
-
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <div className="lg:col-span-2 rounded-2xl border border-mp-border bg-mp-surface p-5">
-          <p className="font-sans text-xs uppercase tracking-wide text-mp-ink-faint mb-1">Distribuição</p>
-          <h2 className="font-serif text-lg font-semibold text-mp-ink mb-4">Estado da colecção</h2>
-          {loading || !data ? (
-            <div className="h-3 rounded-full bg-mp-surface-muted animate-pulse" />
-          ) : (
-            <Progresso colecao={data.colecao} catalogTotal={data.totalCatalogo} />
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-mp-border bg-mp-surface p-5">
-          <p className="font-sans text-xs uppercase tracking-wide text-mp-ink-faint mb-1">Últimos 30 dias</p>
-          <h2 className="font-serif text-lg font-semibold text-mp-ink mb-3">Actividade</h2>
-          {loading || !data ? (
-            <div className="h-14 rounded-lg bg-mp-surface-muted animate-pulse" />
-          ) : (
-            <>
-              <Sparkline data={data.timeline} />
-              <p className="font-sans text-[11px] text-mp-ink-soft mt-2">
-                {data.timeline.reduce((s, d) => s + d.count, 0)} exemplares actualizados
-              </p>
-            </>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-mp-border bg-mp-surface overflow-hidden mb-6">
-        <div className="px-5 py-4 border-b border-mp-border">
-          <p className="font-sans text-xs uppercase tracking-wide text-mp-ink-faint">Recentes</p>
-          <h2 className="font-serif text-lg font-semibold text-mp-ink">Últimas actualizações</h2>
-        </div>
-        {loading ? (
-          <div className="p-5 space-y-3">
-            {[1, 2, 3].map((i) => <div key={i} className="h-10 rounded-lg bg-mp-surface-muted animate-pulse" />)}
-          </div>
-        ) : !data?.recentes.length ? (
-          <p className="px-5 py-10 text-center font-sans text-sm text-mp-ink-soft">
-            Sem actualizações nos últimos 30 dias.
-          </p>
-        ) : (
-          <ul className="divide-y divide-mp-border">
-            {data.recentes.map((r, i) => (
-              <li key={i} className="flex items-center gap-3 px-5 py-3">
-                <span className="shrink-0"><Flag code={(r.paisCodigo || 'eu').split('-')[0]} size={20} /></span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-sans text-sm text-mp-ink font-medium truncate">{r.titulo}</p>
-                  <p className="font-sans text-[11px] text-mp-ink-soft">
-                    {r.quantidade}× · {fmt(r.valorFacial)} € · {tempoAtras(r.updatedAt)}
-                  </p>
-                </div>
-                <span className="flex items-center gap-1.5 shrink-0">
-                  <span className={`w-2 h-2 rounded-full ${FORMATO_DOT[r.formato] ?? 'bg-mp-ink-faint'}`} />
-                  <span className="font-sans text-xs text-mp-ink-soft">{FORMATO_LABEL[r.formato] ?? r.formato}</span>
-                </span>
-              </li>
+          <h2 className="font-sans text-sm font-semibold text-mp-ink mb-3">As tuas coleções</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            {(loading || !data ? PLACEHOLDER_CATS : data.categorias).map((c) => (
+              <CategoriaCard key={c.key} c={c} loading={loading} />
             ))}
-          </ul>
-        )}
-      </section>
+          </div>
 
-      <Link
-        href="/moedas"
-        className="flex items-center justify-center gap-2 rounded-2xl bg-mp-gold px-5 py-4 font-sans font-semibold text-white hover:opacity-90 transition-opacity"
-      >
-        Ver a minha colecção completa →
-      </Link>
-    </div>
-  )
-}
+          {/* Card do agente Numis (por construir) */}
+          <NumisCard />
+        </div>
 
-function Kpi({ label, valor, nota }: { label: string; valor: string | null; nota: string }) {
-  return (
-    <div className="rounded-2xl border border-mp-border bg-mp-surface p-4">
-      <p className="font-sans text-xs uppercase tracking-wide text-mp-ink-faint mb-1.5">{label}</p>
-      {valor === null ? (
-        <div className="h-8 w-16 rounded bg-mp-surface-muted animate-pulse" />
-      ) : (
-        <p className="font-serif text-2xl md:text-3xl font-semibold text-mp-gold-strong tabular-nums">{valor}</p>
-      )}
-      <p className="font-sans text-[11px] text-mp-ink-soft mt-1">{nota}</p>
-    </div>
-  )
-}
+        {/* ─── Painel lateral ───────────────────────────────────────────── */}
+        <aside className="space-y-4">
+          <div className="rounded-3xl border border-mp-border bg-mp-surface p-5">
+            <p className="font-sans text-xs uppercase tracking-wide text-mp-ink-faint mb-1">A minha coleção</p>
+            <p className="font-serif text-3xl font-semibold text-mp-gold-strong tabular-nums">
+              {loading || !data ? '—' : `${fmt(data.valorFacialTotal)} €`}
+            </p>
+            <p className="font-sans text-[11px] text-mp-ink-soft">valor facial · {data?.colecao.total ?? 0} exemplares</p>
 
-function Progresso({
-  colecao,
-  catalogTotal,
-}: {
-  colecao: DashboardData['colecao']
-  catalogTotal: number
-}) {
-  const pct = (n: number) => Math.round((n / Math.max(catalogTotal, 1)) * 100)
-  const segs = [
-    { label: 'Tenho', count: colecao.set, color: 'bg-mp-set' },
-    { label: 'Caderneta', count: colecao.caderneta, color: 'bg-mp-caderneta' },
-    { label: 'Bebé', count: colecao.bebe, color: 'bg-mp-bebe' },
-  ]
-  return (
-    <div className="space-y-3">
-      <div className="flex gap-0.5 h-3 rounded-full overflow-hidden bg-mp-surface-muted">
-        {segs.map((s) =>
-          s.count > 0 ? (
-            <div key={s.label} className={`${s.color} transition-all duration-700`} style={{ width: `${pct(s.count)}%` }} title={`${s.label}: ${s.count}`} />
-          ) : null
-        )}
+            {!loading && data && (
+              <div className="mt-4">
+                <div className="flex gap-0.5 h-2.5 rounded-full overflow-hidden bg-mp-surface-muted">
+                  {([['set', data.colecao.set], ['caderneta', data.colecao.caderneta], ['caderneta_bebe', data.colecao.bebe]] as const).map(([k, n]) =>
+                    n > 0 ? <div key={k} className={FORMATO_DOT[k]} style={{ width: `${(n / Math.max(data.colecao.total, 1)) * 100}%` }} title={`${FORMATO_LABEL[k]}: ${n}`} /> : null,
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-3 mt-2">
+                  {([['set', data.colecao.set], ['caderneta', data.colecao.caderneta], ['caderneta_bebe', data.colecao.bebe]] as const).map(([k, n]) => (
+                    <span key={k} className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${FORMATO_DOT[k]}`} />
+                      <span className="font-sans text-[11px] text-mp-ink-soft">{FORMATO_LABEL[k]}</span>
+                      <span className="font-sans text-[11px] font-semibold text-mp-ink">{n}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-mp-border bg-mp-surface p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-sans text-xs uppercase tracking-wide text-mp-ink-faint">Actividade</p>
+              <span className="font-sans text-[10px] text-mp-ink-faint">30 dias</span>
+            </div>
+            {loading || !data ? (
+              <div className="h-14 rounded-lg bg-mp-surface-muted animate-pulse" />
+            ) : (
+              <Sparkline data={data.timeline} />
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-mp-border bg-mp-surface overflow-hidden">
+            <p className="px-5 pt-4 font-sans text-xs uppercase tracking-wide text-mp-ink-faint">Últimas actualizações</p>
+            {loading ? (
+              <div className="p-5 space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-8 rounded bg-mp-surface-muted animate-pulse" />)}</div>
+            ) : !data?.recentes.length ? (
+              <p className="px-5 py-6 font-sans text-xs text-mp-ink-soft">Sem actualizações recentes.</p>
+            ) : (
+              <ul className="divide-y divide-mp-border mt-2">
+                {data.recentes.slice(0, 6).map((r, i) => (
+                  <li key={i} className="flex items-center gap-2.5 px-5 py-2.5">
+                    <span className="shrink-0"><Flag code={(r.paisCodigo || 'eu').split('-')[0]} size={16} /></span>
+                    <span className="flex-1 min-w-0 font-sans text-xs text-mp-ink truncate">{r.titulo}</span>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${FORMATO_DOT[r.formato] ?? 'bg-mp-ink-faint'}`} title={FORMATO_LABEL[r.formato] ?? r.formato} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <Link href="/moedas" className="flex items-center justify-center gap-2 rounded-3xl bg-mp-gold px-5 py-4 font-sans font-semibold text-white hover:bg-mp-gold-strong transition-colors">
+            Ver a coleção completa →
+          </Link>
+        </aside>
       </div>
-      <div className="flex gap-4 flex-wrap">
-        {segs.map((s) => (
-          <span key={s.label} className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${s.color}`} />
-            <span className="font-sans text-xs text-mp-ink-soft">{s.label}</span>
-            <span className="font-sans text-xs font-semibold text-mp-ink">{s.count}</span>
+    </div>
+  )
+}
+
+const PLACEHOLDER_CATS: CategoriaResumo[] = [
+  { key: 'circulacao', label: 'Circulação', total: 0, comPosse: 0 },
+  { key: 'comemorativa', label: 'Comemorativas 2€', total: 0, comPosse: 0 },
+  { key: 'colecao', label: 'Coleção (ouro/prata)', total: 0, comPosse: 0 },
+]
+
+function CategoriaCard({ c, loading }: { c: CategoriaResumo; loading: boolean }) {
+  const e = CAT_ESTILO[c.key]
+  const pct = c.total > 0 ? Math.round((c.comPosse / c.total) * 100) : 0
+  const emBreve = c.total === 0
+  return (
+    <Link
+      href="/moedas"
+      className={`block rounded-3xl ${e.card} p-5 transition-transform hover:-translate-y-0.5 ${emBreve ? 'pointer-events-none opacity-70' : ''}`}
+    >
+      <div className="flex items-center justify-between mb-6">
+        <span className={`inline-flex items-center gap-1.5 font-sans text-xs font-semibold ${e.chip}`}>
+          <span className="grid place-items-center w-6 h-6 rounded-lg bg-mp-surface/70">◉</span>
+          {c.label}
+        </span>
+        {emBreve
+          ? <span className="font-sans text-[10px] font-semibold text-mp-ink-soft bg-mp-surface/70 rounded-full px-2 py-0.5">Em breve</span>
+          : <span className={`font-sans text-xs font-semibold ${e.chip}`}>{pct}%</span>}
+      </div>
+      <p className="font-serif text-3xl font-semibold text-mp-ink tabular-nums">
+        {loading ? '—' : emBreve ? '—' : c.comPosse}
+        {!emBreve && <span className="font-sans text-base text-mp-ink-soft"> / {c.total}</span>}
+      </p>
+      <p className="font-sans text-[11px] text-mp-ink-soft mb-3">{emBreve ? 'a importar da Numista' : 'na tua coleção'}</p>
+      {!emBreve && (
+        <div className="h-1.5 rounded-full overflow-hidden bg-mp-surface/60">
+          <div className={`h-full ${e.barra}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </Link>
+  )
+}
+
+function NumisCard() {
+  return (
+    <div className="rounded-3xl p-5 text-white bg-mp-gold relative overflow-hidden">
+      <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-white/10" />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-3">
+          <span className="inline-flex items-center gap-2 font-sans text-xs font-semibold">
+            <span className="grid place-items-center w-7 h-7 rounded-xl bg-white/20 font-serif">N</span>
+            Numis · assistente numismático
           </span>
-        ))}
+          <span className="font-sans text-[10px] font-semibold bg-white/20 rounded-full px-2 py-0.5">Em breve</span>
+        </div>
+        <p className="font-serif text-xl font-semibold leading-snug mb-1">
+          Pergunta tudo sobre as tuas moedas
+        </p>
+        <p className="font-sans text-sm text-white/85">
+          Tiragens, valor, raridade, o que te falta e onde encontrar — um agente que conhece
+          o teu catálogo e a tua coleção. Em construção.
+        </p>
       </div>
     </div>
   )
