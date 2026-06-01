@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { estadoDe } from '@/lib/types'
-import { valorReal, eur } from '@/lib/valor'
+import { estadoDe, formatosComMoeda, FORMATOS_COLECAO } from '@/lib/types'
+import { valorReal, valorColecao, eur } from '@/lib/valor'
 import { casaEmissor } from '@/lib/emissores'
-import type { DisplayRow } from '@/lib/types'
+import type { DisplayRow, FormatoColecao } from '@/lib/types'
 import Flag from './Flag'
 
 interface TabelaViewProps {
@@ -11,7 +11,7 @@ interface TabelaViewProps {
   onExportar: () => void
   onImprimir: () => void
   onQuantidade: (row: DisplayRow, qtd: number) => void
-  onEstado: (row: DisplayRow, formato: 'set' | 'caderneta' | null) => void
+  onFormato: (row: DisplayRow, formato: FormatoColecao, ativo: boolean) => void
 }
 
 type Col = 'pais' | 'tipo' | 'moeda' | 'face' | 'ano' | 'casa' | 'estado' | 'qtd' | 'valor'
@@ -42,33 +42,38 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'casa':   return casaEmissor(r)
     case 'estado': return estadoDe(r.item)
     case 'qtd':    return r.item?.quantidade ?? 0
-    case 'valor':  return estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)
+    case 'valor':  return valorColecao(r.coin, r.itens)
   }
 }
 
-function EstadoSelector({ est, onChange }: {
-  est: 'set' | 'caderneta' | 'naotem'
-  onChange: (f: 'set' | 'caderneta' | null) => void
+// S/C/B — uma moeda pode estar em vários formatos ao mesmo tempo (seleção múltipla).
+const FORMATO_CLS: Record<FormatoColecao, string> = {
+  set: 'border-mp-set bg-mp-set-bg text-mp-set',
+  caderneta: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta',
+  caderneta_bebe: 'border-mp-gold bg-mp-falta-bg text-mp-gold-strong',
+}
+function EstadoSelector({ formatos, onChange }: {
+  formatos: Set<FormatoColecao>
+  onChange: (f: FormatoColecao, ativo: boolean) => void
 }) {
-  const btn = (label: string, val: 'set' | 'caderneta', activeCls: string, title: string) => {
-    const ativo = est === val
-    return (
-      <button
-        onClick={() => onChange(ativo ? null : val)}
-        title={title}
-        className={
-          'px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none border transition-colors ' +
-          (ativo ? activeCls : 'border-mp-border text-mp-ink-faint hover:border-mp-ink-soft hover:text-mp-ink-soft')
-        }
-      >
-        {label}
-      </button>
-    )
-  }
   return (
     <div className="flex gap-1">
-      {btn('S', 'set', 'border-mp-set bg-mp-set-bg text-mp-set', 'Set — moeda em coleção organizada')}
-      {btn('C', 'caderneta', 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta', 'Caderneta — moeda colada/registada na caderneta')}
+      {FORMATOS_COLECAO.map(({ v, curto, label }) => {
+        const ativo = formatos.has(v)
+        return (
+          <button
+            key={v}
+            onClick={() => onChange(v, !ativo)}
+            title={ativo ? `Retirar de ${label}` : `Marcar em ${label}`}
+            className={
+              'w-6 px-1 py-0.5 rounded text-[10px] font-semibold leading-none border transition-colors ' +
+              (ativo ? FORMATO_CLS[v] : 'border-mp-border text-mp-ink-faint hover:border-mp-ink-soft hover:text-mp-ink-soft')
+            }
+          >
+            {curto}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -78,7 +83,7 @@ const selectCls = 'h-8 rounded-lg border border-mp-border bg-mp-surface px-2 tex
 // trava o browser. Filtros/ordenação/somas continuam sobre o conjunto completo.
 const PAGINA_TAM = 200
 
-export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onEstado }: TabelaViewProps) {
+export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato }: TabelaViewProps) {
   // null = ordem natural por defeito (país›casa›tipo›ano›face); clicar numa coluna ordena por ela.
   const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 } | null>(null)
   const [filtroPais, setFiltroPais] = useState('')
@@ -138,7 +143,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   )
 
   const totalValor = useMemo(
-    () => filtradas.reduce((s, r) => s + (estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)), 0),
+    () => filtradas.reduce((s, r) => s + valorColecao(r.coin, r.itens), 0),
     [filtradas],
   )
   const totalSet   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'set').length, [filtradas])
@@ -306,7 +311,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                   <td className="px-3 py-1.5">{anoNum(r) || r.issue.ano}</td>
                   <td className="px-3 py-1.5 text-mp-ink-soft text-[11px]">{casaEmissor(r)}</td>
                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                    <EstadoSelector est={est} onChange={(f) => onEstado(r, f)} />
+                    <EstadoSelector formatos={formatosComMoeda(r.itens)} onChange={(f, a) => onFormato(r, f, a)} />
                   </td>
                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
@@ -331,7 +336,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                     </div>
                   </td>
                   <td className="px-3 py-1.5 text-right text-mp-gold-strong">
-                    {est === 'naotem' ? '—' : eur(valorReal(r.coin, r.item))}
+                    {r.itens.length === 0 ? '—' : eur(valorColecao(r.coin, r.itens))}
                   </td>
                 </tr>
               )

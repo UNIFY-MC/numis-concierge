@@ -5,10 +5,10 @@ import {
   getCatalogCoins, getCatalogIssues, getCollection,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
-import { estadoDe } from '@/lib/types'
-import { valorReal } from '@/lib/valor'
+import { estadoDe, itemPrincipal } from '@/lib/types'
+import { valorReal, valorColecao } from '@/lib/valor'
 import { casaEmissor } from '@/lib/emissores'
-import type { DisplayRow, CatalogCoin, CollectionItem, PaisAgregado } from '@/lib/types'
+import type { DisplayRow, CatalogCoin, CollectionItem, PaisAgregado, FormatoColecao } from '@/lib/types'
 import StatsBar from './StatsBar'
 import FilterBar, { type EstadoFiltro } from './FilterBar'
 import ViewTabs, { type Vista } from './ViewTabs'
@@ -50,12 +50,19 @@ export default function MoedasCollection() {
     Promise.all([getCatalogCoins(), getCatalogIssues(), getCollection()])
       .then(([coins, issues, collection]) => {
         const coinById = new Map<string, CatalogCoin>(coins.map((c) => [c.id, c]))
-        const itemByIssue = new Map<string, CollectionItem>()
-        for (const it of collection) if (it.catalog_issue_id) itemByIssue.set(it.catalog_issue_id, it)
+        // Vários exemplares por issue (um por formato): agrupar numa lista.
+        const itensByIssue = new Map<string, CollectionItem[]>()
+        for (const it of collection) if (it.catalog_issue_id) {
+          const arr = itensByIssue.get(it.catalog_issue_id) ?? []
+          arr.push(it)
+          itensByIssue.set(it.catalog_issue_id, arr)
+        }
         const built = issues
           .map((issue) => {
             const coin = coinById.get(issue.catalog_coin_id)
-            return coin ? { issue, coin, item: itemByIssue.get(issue.id) ?? null } : null
+            if (!coin) return null
+            const itens = itensByIssue.get(issue.id) ?? []
+            return { issue, coin, itens, item: itemPrincipal(itens) }
           })
           .filter((r): r is DisplayRow => r !== null)
         setRows(built)
@@ -71,8 +78,8 @@ export default function MoedasCollection() {
     for (const r of rows) {
       codigos.add(r.coin.pais_codigo)
       const e = estadoDe(r.item)
-      if (e === 'set') { s.set++; s.vSet += valorReal(r.coin, r.item) }
-      else if (e === 'caderneta') { s.cad++; s.vCad += valorReal(r.coin, r.item) }
+      if (e === 'set') { s.set++; s.vSet += valorColecao(r.coin, r.itens) }
+      else if (e === 'caderneta') { s.cad++; s.vCad += valorColecao(r.coin, r.itens) }
       else s.naotem++
     }
     s.emissores = codigos.size
@@ -109,8 +116,8 @@ export default function MoedasCollection() {
       }
       a.total++
       const e = estadoDe(r.item)
-      if (e === 'set') { a.set++; a.valorSet += valorReal(r.coin, r.item) }
-      else if (e === 'caderneta') { a.cad++; a.valorCad += valorReal(r.coin, r.item) }
+      if (e === 'set') { a.set++; a.valorSet += valorColecao(r.coin, r.itens) }
+      else if (e === 'caderneta') { a.cad++; a.valorCad += valorColecao(r.coin, r.itens) }
       else a.falta++
     }
     // Se o álbum por casas já existe, o cartão residual da Alemanha são as moedas
@@ -171,68 +178,72 @@ export default function MoedasCollection() {
     }
   }, [imprimir])
 
+  // Substitui (ou acrescenta) o exemplar de um formato e recalcula o principal.
+  function aplicarSaved(prev: DisplayRow[], issueId: string, saved: CollectionItem): DisplayRow[] {
+    return prev.map((r) => {
+      if (r.issue.id !== issueId) return r
+      const itens = [...r.itens.filter((i) => i.formato_posse !== saved.formato_posse), saved]
+      return { ...r, itens, item: itemPrincipal(itens) }
+    })
+  }
+
   async function guardar(input: CoinSheetSave) {
     if (!selecionada) return
-    const formato = input.estado === 'caderneta' ? 'caderneta' : input.estado === 'set' ? 'set' : null
-    const saved = await upsertCollectionItem({
-      catalogCoinId: selecionada.coin.id,
-      catalogIssueId: selecionada.issue.id,
-      quantidade: input.quantidade,
-      formatoPosse: formato,
-      casaMoeda: input.casaMoeda,
-      grau: input.grau,
-      valorBase: input.valorBase,
-      foto: input.foto,
-      notaPrivada: input.nota,
-    })
-    if (input.aplicarTodos) {
-      await applyToAllYears(selecionada.coin.id, input.valorBase, input.foto)
+    const { coin, issue } = selecionada
+    const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota }
+    const saves: CollectionItem[] = []
+    // Formatos marcados: gravar exemplar (qty ≥ 1, grau/valor próprios).
+    for (const f of input.formatos) {
+      saves.push(await upsertCollectionItem({
+        catalogCoinId: coin.id, catalogIssueId: issue.id,
+        quantidade: Math.max(1, f.quantidade), formatoPosse: f.formato,
+        grau: f.grau, valorBase: f.valorBase, ...comuns,
+      }))
     }
-    setRows((prev) => prev.map((r) => {
-      if (r.issue.id === selecionada.issue.id) return { ...r, item: saved }
-      if (input.aplicarTodos && r.coin.id === selecionada.coin.id && r.item) {
-        return { ...r, item: { ...r.item, valor_base: input.valorBase, foto1: input.foto } }
-      }
-      return r
-    }))
-  }
-
-  // Atualização rápida de quantidade (vista Tabela), sem abrir o CoinSheet.
-  // Preserva o formato/grau/valor já guardados; qtd 0 → "não tem".
-  async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
-    const qtd = Math.max(0, novaQtd)
-    const atual = row.item
-    const formato = qtd === 0 ? null : (atual?.formato_posse ?? 'set')
-    const saved = await upsertCollectionItem({
-      catalogCoinId: row.coin.id,
-      catalogIssueId: row.issue.id,
-      quantidade: qtd,
-      formatoPosse: formato,
-      casaMoeda: atual?.casa_moeda ?? null,
-      grau: atual?.grau ?? null,
-      valorBase: atual?.valor_base ?? null,
-      foto: atual?.foto1 ?? null,
-      notaPrivada: atual?.nota_privada ?? null,
+    // Formatos desmarcados que existiam: pôr quantidade 0 (RLS não permite apagar).
+    for (const fr of input.removidos) {
+      saves.push(await upsertCollectionItem({
+        catalogCoinId: coin.id, catalogIssueId: issue.id,
+        quantidade: 0, formatoPosse: fr, grau: null, valorBase: null, ...comuns,
+      }))
+    }
+    if (input.aplicarTodos) await applyToAllYears(coin.id, input.formatos[0]?.valorBase ?? null, input.foto)
+    setRows((prev) => {
+      let next = prev
+      for (const s of saves) next = aplicarSaved(next, issue.id, s)
+      return next
     })
-    setRows((prev) => prev.map((r) => (r.issue.id === row.issue.id ? { ...r, item: saved } : r)))
   }
 
-  // Atualização rápida de estado (S/C/nulo) sem abrir o CoinSheet.
-  // null → não tem (qtd=0). Caso contrário preserva qtd (mínimo 1).
-  async function alterarEstado(row: DisplayRow, formato: 'set' | 'caderneta' | null) {
-    const qtd = formato === null ? 0 : Math.max(1, row.item?.quantidade ?? 1)
+  // Tabela: alterna um formato (S/C/B) sem abrir o CoinSheet. Preserva grau/valor.
+  async function alterarFormato(row: DisplayRow, formato: FormatoColecao, ativo: boolean) {
+    const ex = row.itens.find((i) => i.formato_posse === formato)
     const saved = await upsertCollectionItem({
-      catalogCoinId: row.coin.id,
-      catalogIssueId: row.issue.id,
-      quantidade: qtd,
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: ativo ? Math.max(1, ex?.quantidade ?? 1) : 0,
       formatoPosse: formato,
       casaMoeda: row.item?.casa_moeda ?? null,
-      grau: row.item?.grau ?? null,
-      valorBase: row.item?.valor_base ?? null,
-      foto: row.item?.foto1 ?? null,
-      notaPrivada: row.item?.nota_privada ?? null,
+      grau: ex?.grau ?? row.item?.grau ?? null,
+      valorBase: ex?.valor_base ?? row.item?.valor_base ?? null,
+      foto: ex?.foto1 ?? row.item?.foto1 ?? null,
+      notaPrivada: ex?.nota_privada ?? null,
     })
-    setRows((prev) => prev.map((r) => (r.issue.id === row.issue.id ? { ...r, item: saved } : r)))
+    setRows((prev) => aplicarSaved(prev, row.issue.id, saved))
+  }
+
+  // Tabela: stepper de quantidade — actua no formato principal (ou cria 'set').
+  async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
+    const qtd = Math.max(0, novaQtd)
+    const alvo = row.item
+    const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'set'
+    const saved = await upsertCollectionItem({
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: qtd, formatoPosse: formato,
+      casaMoeda: alvo?.casa_moeda ?? null, grau: alvo?.grau ?? null,
+      valorBase: alvo?.valor_base ?? null, foto: alvo?.foto1 ?? null,
+      notaPrivada: alvo?.nota_privada ?? null,
+    })
+    setRows((prev) => aplicarSaved(prev, row.issue.id, saved))
   }
 
   function exportar() {
@@ -332,9 +343,16 @@ export default function MoedasCollection() {
         })
       }
       const collection = await getCollection()
-      const itemByIssue = new Map<string, CollectionItem>()
-      for (const it of collection) if (it.catalog_issue_id) itemByIssue.set(it.catalog_issue_id, it)
-      setRows((prev) => prev.map((r) => ({ ...r, item: itemByIssue.get(r.issue.id) ?? null })))
+      const itensByIssue = new Map<string, CollectionItem[]>()
+      for (const it of collection) if (it.catalog_issue_id) {
+        const arr = itensByIssue.get(it.catalog_issue_id) ?? []
+        arr.push(it)
+        itensByIssue.set(it.catalog_issue_id, arr)
+      }
+      setRows((prev) => prev.map((r) => {
+        const itens = itensByIssue.get(r.issue.id) ?? []
+        return { ...r, itens, item: itemPrincipal(itens) }
+      }))
     } catch (err) {
       setErro('Importação falhou: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
@@ -392,7 +410,7 @@ export default function MoedasCollection() {
           onExportar={() => exportarCsv()}
           onImprimir={() => setImprimir({ tipo: 'geral' })}
           onQuantidade={alterarQuantidade}
-          onEstado={alterarEstado}
+          onFormato={alterarFormato}
         />
       ) : paisAberto ? (
         <PaisDetalhe

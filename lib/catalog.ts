@@ -82,12 +82,12 @@ export interface CollectionUpsert {
 // Cria ou actualiza o exemplar de uma issue. Nunca apaga (ver dívida técnica
 // do RLS anon na migration 006): "não tenho" é guardado como quantidade=0.
 export async function upsertCollectionItem(input: CollectionUpsert): Promise<CollectionItem> {
-  const { data: existing, error: selErr } = await supabase
-    .from('collection')
-    .select('id')
-    .eq('catalog_issue_id', input.catalogIssueId)
-    .limit(1)
-    .maybeSingle()
+  // Uma linha por (issue, formato) — uma moeda pode existir em vários formatos
+  // (set/caderneta/caderneta_bebe), cada um o seu exemplar.
+  const formato = input.formatoPosse ?? null
+  let q = supabase.from('collection').select('id').eq('catalog_issue_id', input.catalogIssueId)
+  q = formato ? q.eq('formato_posse', formato) : q.is('formato_posse', null)
+  const { data: existing, error: selErr } = await q.limit(1).maybeSingle()
   if (selErr) throw selErr
 
   const fields = {

@@ -62,11 +62,44 @@ export interface CatalogIssue {
   created_at: string
 }
 
-// Linha de apresentação: junta issue + o seu coin + o exemplar na colecção (se houver)
+// Linha de apresentação: junta issue + o seu coin + os exemplares na colecção.
+// `itens` = todos os exemplares (um por formato: set/caderneta/caderneta_bebe).
+// `item` = exemplar principal (resumo para a matriz/cartões); ver itemPrincipal().
 export interface DisplayRow {
   issue: CatalogIssue
   coin: CatalogCoin
   item: CollectionItem | null
+  itens: CollectionItem[]
+}
+
+// Formatos de posse com que uma moeda pode existir em simultâneo (S/C/B).
+export type FormatoColecao = 'set' | 'caderneta' | 'caderneta_bebe'
+export const FORMATOS_COLECAO: { v: FormatoColecao; label: string; curto: string }[] = [
+  { v: 'set', label: 'Set', curto: 'S' },
+  { v: 'caderneta', label: 'Caderneta', curto: 'C' },
+  { v: 'caderneta_bebe', label: 'Caderneta bebé', curto: 'B' },
+]
+const PRIORIDADE: FormatoColecao[] = ['set', 'caderneta', 'caderneta_bebe']
+
+// Exemplar principal (o de maior prioridade com quantidade > 0), para o resumo visual.
+export function itemPrincipal(itens: CollectionItem[]): CollectionItem | null {
+  const tem = itens.filter((i) => i.quantidade > 0)
+  for (const f of PRIORIDADE) {
+    const m = tem.find((i) => i.formato_posse === f)
+    if (m) return m
+  }
+  return tem[0] ?? null
+}
+
+// Conjunto de formatos em que a moeda existe (quantidade > 0).
+export function formatosComMoeda(itens: CollectionItem[]): Set<FormatoColecao> {
+  const s = new Set<FormatoColecao>()
+  for (const i of itens) {
+    if (i.quantidade > 0 && (PRIORIDADE as string[]).includes(i.formato_posse ?? '')) {
+      s.add(i.formato_posse as FormatoColecao)
+    }
+  }
+  return s
 }
 
 export const FORMATOS_POSSE = [
@@ -114,7 +147,7 @@ export interface CollectionItem {
   catalog_issue_id: string | null
   user_id: string | null
   quantidade: number
-  formato_posse: 'set' | 'caderneta' | 'carteira' | 'circulacao' | 'proof' | 'slab' | 'outro' | null
+  formato_posse: 'set' | 'caderneta' | 'caderneta_bebe' | 'carteira' | 'circulacao' | 'proof' | 'slab' | 'outro' | null
   casa_moeda: string | null
   grau: string | null
   grau_sistema: 'Sheldon' | 'Europeu' | 'Simplificado' | null

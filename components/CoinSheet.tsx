@@ -1,23 +1,21 @@
 import { useEffect, useState } from 'react'
-import { estadoDe, denomCurta } from '@/lib/types'
+import { denomCurta, FORMATOS_COLECAO } from '@/lib/types'
 import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
-import type { DisplayRow, Estado } from '@/lib/types'
+import type { DisplayRow, Estado, FormatoColecao, CollectionItem } from '@/lib/types'
 import CoinDisc from './CoinDisc'
 import Flag from './Flag'
 
 export interface CoinSheetSave {
-  estado: Estado
-  quantidade: number
+  // Uma moeda pode existir em vários formatos ao mesmo tempo, cada um o seu exemplar.
+  formatos: { formato: FormatoColecao; quantidade: number; grau: string; valorBase: number | null }[]
+  removidos: FormatoColecao[]
   casaMoeda: string | null
-  grau: string
-  valorBase: number | null
   foto: string | null
   nota: string | null
   aplicarTodos: boolean
 }
 
-// Casas da moeda alemãs. Só relevante para a Alemanha; permite agrupar a
-// coleção por casa nos cartões de-A … de-J.
+// Casas da moeda alemãs. Só relevante para a Alemanha.
 const CASAS_DE = ['A', 'D', 'F', 'G', 'J'] as const
 
 interface CoinSheetProps {
@@ -26,27 +24,38 @@ interface CoinSheetProps {
   onSave: (input: CoinSheetSave) => Promise<void>
 }
 
-const ESTADOS: { v: Estado; label: string; cor: string }[] = [
-  { v: 'set', label: 'Set', cor: 'border-mp-set bg-mp-set-bg text-mp-set' },
-  { v: 'caderneta', label: 'Caderneta', cor: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta' },
-  { v: 'naotem', label: 'Não tem', cor: 'border-mp-falta bg-mp-falta-bg text-mp-falta' },
-]
+interface EstadoFormato { ativo: boolean; qtd: number; grau: string; valor: string }
+
+const FORMATO_COR: Record<FormatoColecao, string> = {
+  set: 'border-mp-set bg-mp-set-bg text-mp-set',
+  caderneta: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta',
+  caderneta_bebe: 'border-mp-gold bg-mp-falta-bg text-mp-gold-strong',
+}
 
 export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
-  const item = row.item
   const facial = row.coin.valor_facial ?? 0
   const short = denomCurta(row.coin.valor_facial, row.coin.denominacao)
 
-  const [estado, setEstado] = useState<Estado>(estadoDe(item))
-  const [quantidade, setQuantidade] = useState(item?.quantidade && item.quantidade > 0 ? item.quantidade : 1)
-  const [grau, setGrau] = useState(item?.grau ?? GRADE_DEFAULT)
-  const [valorBase, setValorBase] = useState(String(item?.valor_base ?? facial))
-  const [casaMoeda, setCasaMoeda] = useState(item?.casa_moeda ?? row.issue.casa_moeda ?? '')
-  const [foto, setFoto] = useState(item?.foto1 ?? '')
-  const mostraCasa = row.coin.pais_codigo === 'de'
-  const [nota, setNota] = useState(item?.nota_privada ?? row.issue.html_obs ?? '')
+  // Estado por formato, inicializado a partir dos exemplares existentes.
+  const exDe = (v: FormatoColecao): CollectionItem | undefined =>
+    row.itens.find((i) => i.formato_posse === v && i.quantidade > 0)
+  const [form, setForm] = useState<Record<FormatoColecao, EstadoFormato>>(() => {
+    const o = {} as Record<FormatoColecao, EstadoFormato>
+    for (const { v } of FORMATOS_COLECAO) {
+      const ex = exDe(v)
+      o[v] = { ativo: !!ex, qtd: ex?.quantidade ?? 1, grau: ex?.grau ?? GRADE_DEFAULT, valor: String(ex?.valor_base ?? facial) }
+    }
+    return o
+  })
+  const setF = (v: FormatoColecao, patch: Partial<EstadoFormato>) =>
+    setForm((cur) => ({ ...cur, [v]: { ...cur[v], ...patch } }))
+
+  const [casaMoeda, setCasaMoeda] = useState(row.item?.casa_moeda ?? row.issue.casa_moeda ?? '')
+  const [foto, setFoto] = useState(row.item?.foto1 ?? '')
+  const [nota, setNota] = useState(row.item?.nota_privada ?? row.issue.html_obs ?? '')
   const [aplicarTodos, setAplicarTodos] = useState(false)
   const [saving, setSaving] = useState(false)
+  const mostraCasa = row.coin.pais_codigo === 'de'
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
@@ -54,17 +63,19 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const tenho = estado !== 'naotem'
-  const base = parseFloat(valorBase) || 0
-  const estimado = tenho ? Math.max(1, quantidade) * base * gradeMult(grau) : 0
+  const ativos = FORMATOS_COLECAO.filter((f) => form[f.v].ativo)
+  const tenho = ativos.length > 0
+  const estimado = ativos.reduce((s, f) => {
+    const st = form[f.v]
+    return s + Math.max(1, st.qtd) * (parseFloat(st.valor) || 0) * gradeMult(st.grau)
+  }, 0)
+  const estadoDisco: Estado = form.set.ativo ? 'set' : (form.caderneta.ativo || form.caderneta_bebe.ativo) ? 'caderneta' : 'naotem'
 
   const { peso_g, diametro_mm, composicao, km_ref, schon_ref, anverso_desc, reverso_desc, orla_desc } = row.coin
-  // Prioridade: foto do exemplar do utilizador > foto do ano (issue) > foto genérica do tipo.
-  const fotoUser = item?.foto1 || null
+  const fotoUser = row.item?.foto1 || null
   const anverso_img = fotoUser || row.issue.anverso_img || row.coin.anverso_img
   const reverso_img = fotoUser ? null : (row.issue.reverso_img || row.coin.reverso_img)
-  const fotoEspecifica = !!fotoUser || !!row.issue.anverso_img
-  const fotoGenerica = !fotoEspecifica && !!row.coin.anverso_img
+  const fotoGenerica = !fotoUser && !row.issue.anverso_img && !!row.coin.anverso_img
   const temFotos = !!(anverso_img || reverso_img)
   const specs = [
     peso_g != null && `${peso_g} g`,
@@ -73,7 +84,6 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
     km_ref && `KM# ${km_ref}`,
     schon_ref && `Schön# ${schon_ref}`,
   ].filter(Boolean) as string[]
-
   const descricoes = [
     anverso_desc && { t: 'Anverso', d: anverso_desc },
     reverso_desc && { t: 'Reverso', d: reverso_desc },
@@ -83,12 +93,17 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
   async function guardar() {
     setSaving(true)
     try {
+      const formatos = ativos.map((f) => ({
+        formato: f.v,
+        quantidade: Math.max(1, form[f.v].qtd),
+        grau: form[f.v].grau,
+        valorBase: parseFloat(form[f.v].valor) || null,
+      }))
+      const tinha = new Set(row.itens.filter((i) => i.quantidade > 0).map((i) => i.formato_posse))
+      const removidos = FORMATOS_COLECAO.filter((f) => !form[f.v].ativo && tinha.has(f.v)).map((f) => f.v)
       await onSave({
-        estado,
-        quantidade: tenho ? Math.max(1, quantidade) : 0,
+        formatos, removidos,
         casaMoeda: casaMoeda || null,
-        grau,
-        valorBase: base || null,
         foto: foto.trim() || null,
         nota: nota.trim() || null,
         aplicarTodos,
@@ -106,7 +121,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-mp-surface w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 max-h-[92vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3 mb-5">
-          <CoinDisc short={short} ano={row.issue.ano} estado={estado} size={72} />
+          <CoinDisc short={short} ano={row.issue.ano} estado={estadoDisco} size={72} />
           <div className="flex-1">
             <h2 className="font-serif text-lg font-semibold leading-tight text-mp-ink flex items-center gap-2">
               <Flag code={row.coin.pais_codigo} size={20} /> {row.coin.pais_nome}
@@ -164,21 +179,47 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           </div>
         )}
 
+        {/* Formatos de posse — uma moeda pode estar em vários (S/C/B), cada um o seu exemplar. */}
         <div className="mb-4">
-          <span className={lbl}>Estado de posse</span>
-          <div className="flex gap-2">
-            {ESTADOS.map((e) => (
-              <button
-                key={e.v}
-                onClick={() => setEstado(e.v)}
-                className={
-                  'flex-1 rounded-lg py-2.5 text-sm font-medium border ' +
-                  (estado === e.v ? e.cor : 'border-mp-border text-mp-ink-soft')
-                }
-              >
-                {e.label}
-              </button>
-            ))}
+          <span className={lbl}>Formatos de posse — marca em quais a tens</span>
+          <div className="space-y-2">
+            {FORMATOS_COLECAO.map(({ v, label }) => {
+              const st = form[v]
+              return (
+                <div key={v} className={'rounded-lg border ' + (st.ativo ? 'border-mp-border' : 'border-mp-border/60')}>
+                  <button
+                    onClick={() => setF(v, { ativo: !st.ativo })}
+                    className={
+                      'w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg ' +
+                      (st.ativo ? FORMATO_COR[v] : 'text-mp-ink-soft')
+                    }
+                  >
+                    <span>{label}</span>
+                    <span className="text-xs">{st.ativo ? '✓ tenho' : 'marcar'}</span>
+                  </button>
+                  {st.ativo && (
+                    <div className="grid grid-cols-3 gap-2 px-3 pb-3 pt-1">
+                      <label className="block">
+                        <span className="text-[10px] text-mp-ink-faint">Qtd</span>
+                        <input type="number" min={1} value={st.qtd}
+                          onChange={(e) => setF(v, { qtd: parseInt(e.target.value, 10) || 1 })} className={inp} />
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] text-mp-ink-faint">Conservação</span>
+                        <select value={st.grau} onChange={(e) => setF(v, { grau: e.target.value })} className={inp}>
+                          {GRADES.map((g) => <option key={g.label} value={g.label}>{g.label}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] text-mp-ink-faint">Valor base €</span>
+                        <input type="number" step="0.01" min="0" value={st.valor}
+                          onChange={(e) => setF(v, { valor: e.target.value })} className={inp} />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
@@ -203,7 +244,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         )}
 
         <label className="block mb-2">
-          <span className={lbl}>Foto da moeda (URL — copia da Numista e cola aqui)</span>
+          <span className={lbl}>Foto da moeda (URL)</span>
           <input value={foto} onChange={(e) => setFoto(e.target.value)} placeholder="https://…jpg" className={inp} />
         </label>
         <label className="flex items-center gap-2 text-xs text-mp-ink-soft mb-4">
@@ -211,27 +252,8 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           Aplicar foto e valor a todos os anos de {row.coin.pais_nome} · {short}
         </label>
 
-        {tenho && (
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <label className="block">
-              <span className={lbl}>Estado de conservação</span>
-              <select value={grau} onChange={(e) => setGrau(e.target.value)} className={inp}>
-                {GRADES.map((g) => <option key={g.label} value={g.label}>{g.label}</option>)}
-              </select>
-            </label>
-            <label className="block">
-              <span className={lbl}>Valor base (€) — por exemplar</span>
-              <input type="number" step="0.01" min="0" value={valorBase} onChange={(e) => setValorBase(e.target.value)} className={inp} />
-            </label>
-            <label className="block col-span-2">
-              <span className={lbl}>Quantidade — nº de exemplares que tens</span>
-              <input type="number" min={1} value={quantidade} onChange={(e) => setQuantidade(parseInt(e.target.value, 10) || 1)} className={inp} />
-            </label>
-          </div>
-        )}
-
         <div className="bg-mp-surface-muted border border-mp-border rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
-          <span className="text-xs text-mp-ink-soft">Valor real estimado (quantidade × base × conservação)</span>
+          <span className="text-xs text-mp-ink-soft">Valor real estimado (soma dos formatos)</span>
           <span className="font-serif text-xl font-semibold text-mp-gold-strong">{eur(estimado)}</span>
         </div>
 

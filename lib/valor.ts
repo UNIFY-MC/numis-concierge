@@ -33,6 +33,11 @@ export function valorReal(coin: CatalogCoin, item: CollectionItem | null): numbe
   return item.quantidade * baseVal(coin.valor_facial, item) * gradeMult(item.grau)
 }
 
+// Valor de todos os exemplares de uma moeda (soma dos formatos: set+caderneta+bebé).
+export function valorColecao(coin: CatalogCoin, itens: CollectionItem[]): number {
+  return itens.reduce((s, it) => s + valorReal(coin, it), 0)
+}
+
 export function eur(n: number): string {
   return '€ ' + n.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
