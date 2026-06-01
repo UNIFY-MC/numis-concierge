@@ -16,29 +16,28 @@ type Col = 'pais' | 'tipo' | 'moeda' | 'face' | 'ano' | 'casa' | 'estado' | 'qtd
 
 function valOf(r: DisplayRow, col: Col): string | number {
   switch (col) {
-    case 'pais': return r.coin.pais_nome
-    case 'tipo': return r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')
-    case 'moeda': return r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || '') : (r.coin.denominacao ?? '')
-    case 'face': return r.coin.valor_facial ?? 0
-    case 'ano': return r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10) ?? 0
-    case 'casa': return r.item?.casa_moeda || r.issue.casa_moeda || ''
+    case 'pais':   return r.coin.pais_nome
+    case 'tipo':   return r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')
+    case 'moeda':  return r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || '') : (r.coin.denominacao ?? '')
+    case 'face':   return r.coin.valor_facial ?? 0
+    case 'ano':    return r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10) ?? 0
+    case 'casa':   return r.issue.casa_moeda ?? ''
     case 'estado': return estadoDe(r.item)
-    case 'qtd': return r.item?.quantidade ?? 0
-    case 'valor': return estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)
+    case 'qtd':    return r.item?.quantidade ?? 0
+    case 'valor':  return estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)
   }
 }
 
-// Botões S/C — activo = fundo sólido; inactivo = ghost. Clicar no activo limpa (→ não tem).
 function EstadoSelector({ est, onChange }: {
   est: 'set' | 'caderneta' | 'naotem'
   onChange: (f: 'set' | 'caderneta' | null) => void
 }) {
-  const btn = (label: string, val: 'set' | 'caderneta', activeCls: string) => {
+  const btn = (label: string, val: 'set' | 'caderneta', activeCls: string, title: string) => {
     const ativo = est === val
     return (
       <button
         onClick={() => onChange(ativo ? null : val)}
-        title={ativo ? 'Retirar (→ não tem)' : val === 'set' ? 'Marcar como Set' : 'Marcar como Caderneta'}
+        title={title}
         className={
           'px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none border transition-colors ' +
           (ativo ? activeCls : 'border-mp-border text-mp-ink-faint hover:border-mp-ink-soft hover:text-mp-ink-soft')
@@ -50,26 +49,71 @@ function EstadoSelector({ est, onChange }: {
   }
   return (
     <div className="flex gap-1">
-      {btn('S', 'set', 'border-mp-set bg-mp-set-bg text-mp-set')}
-      {btn('C', 'caderneta', 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta')}
+      {btn('S', 'set', 'border-mp-set bg-mp-set-bg text-mp-set', 'Set — moeda em coleção organizada')}
+      {btn('C', 'caderneta', 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta', 'Caderneta — moeda colada/registada na caderneta')}
     </div>
   )
 }
 
+const selectCls = 'h-8 rounded-lg border border-mp-border bg-mp-surface px-2 text-sm text-mp-ink outline-none focus:border-mp-gold min-w-[130px]'
+
 export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, onEstado }: TabelaViewProps) {
   const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: 'pais', dir: 1 })
+  const [filtroPais, setFiltroPais] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState<'' | 'circulacao' | 'comemorativa'>('')
+  const [filtroAno, setFiltroAno] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState<'' | 'set' | 'caderneta' | 'naotem'>('')
+
+  const { paises, anos } = useMemo(() => {
+    const ps = new Map<string, string>()
+    const as = new Set<string>()
+    for (const r of rows) {
+      ps.set(r.coin.pais_codigo, r.coin.pais_nome)
+      if (r.issue.ano) as.add(r.issue.ano)
+    }
+    return {
+      paises: [...ps.entries()].sort((a, b) => a[1].localeCompare(b[1])),
+      anos: [...as].sort((a, b) => {
+        const na = parseInt(a, 10), nb = parseInt(b, 10)
+        return (isNaN(na) ? 0 : na) - (isNaN(nb) ? 0 : nb)
+      }),
+    }
+  }, [rows])
+
+  const filtradas = useMemo(() => {
+    return rows.filter((r) => {
+      if (filtroPais && r.coin.pais_codigo !== filtroPais) return false
+      if (filtroTipo === 'circulacao' && r.coin.comemorativa) return false
+      if (filtroTipo === 'comemorativa' && !r.coin.comemorativa) return false
+      if (filtroAno && r.issue.ano !== filtroAno) return false
+      if (filtroEstado && estadoDe(r.item) !== filtroEstado) return false
+      return true
+    })
+  }, [rows, filtroPais, filtroTipo, filtroAno, filtroEstado])
 
   const ordenadas = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    return [...filtradas].sort((a, b) => {
       const va = valOf(a, sort.col), vb = valOf(b, sort.col)
       let cmp = typeof va === 'number' && typeof vb === 'number'
         ? va - vb
-        : String(va).localeCompare(String(vb))
-      if (cmp === 0) cmp = a.coin.pais_nome.localeCompare(b.coin.pais_nome)
-        || (a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0)
+        : String(va).localeCompare(String(vb), 'pt')
+      if (cmp === 0) {
+        cmp = a.coin.pais_nome.localeCompare(b.coin.pais_nome, 'pt')
+          || (a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0)
+      }
       return cmp * sort.dir
     })
-  }, [rows, sort])
+  }, [filtradas, sort])
+
+  const totalValor = useMemo(
+    () => filtradas.reduce((s, r) => s + (estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)), 0),
+    [filtradas],
+  )
+  const totalSet   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'set').length, [filtradas])
+  const totalCad   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'caderneta').length, [filtradas])
+  const totalFalta = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'naotem').length, [filtradas])
+
+  const temFiltro = filtroPais || filtroTipo || filtroAno || filtroEstado
 
   function th(col: Col, label: string, extra = '') {
     const ativo = sort.col === col
@@ -78,39 +122,103 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
         onClick={() => setSort((s) => ({ col, dir: s.col === col && s.dir === 1 ? -1 : 1 }))}
         className={'px-3 py-2 font-semibold cursor-pointer select-none whitespace-nowrap hover:text-mp-ink ' + extra}
       >
-        {label}{ativo ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+        {label}{ativo ? (sort.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}
       </th>
     )
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-mp-ink-soft">{rows.length} moedas no catálogo (com o filtro atual)</p>
-        <button
-          onClick={onExportar}
-          className="border border-mp-gold rounded-lg px-3 py-2 text-sm font-semibold text-mp-gold-strong hover:bg-mp-falta-bg"
-        >
-          ⤓ Exportar Excel
-        </button>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <select value={filtroPais} onChange={(e) => setFiltroPais(e.target.value)} className={selectCls}>
+          <option value="">Todos os países</option>
+          {paises.map(([cod, nome]) => (
+            <option key={cod} value={cod}>{nome}</option>
+          ))}
+        </select>
+
+        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as typeof filtroTipo)} className={selectCls}>
+          <option value="">Circulação + Comemorativas</option>
+          <option value="circulacao">Só Circulação</option>
+          <option value="comemorativa">Só Comemorativas</option>
+        </select>
+
+        <select value={filtroAno} onChange={(e) => setFiltroAno(e.target.value)} className={selectCls} style={{ minWidth: 100 }}>
+          <option value="">Todos os anos</option>
+          {anos.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+
+        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} className={selectCls} style={{ minWidth: 140 }}>
+          <option value="">Todos os estados</option>
+          <option value="set">Set</option>
+          <option value="caderneta">Caderneta</option>
+          <option value="naotem">Não tem</option>
+        </select>
+
+        {temFiltro && (
+          <button
+            onClick={() => { setFiltroPais(''); setFiltroTipo(''); setFiltroAno(''); setFiltroEstado('') }}
+            className="text-xs text-mp-ink-soft hover:text-mp-ink underline"
+          >
+            Limpar filtros
+          </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-2 text-[11px] text-mp-ink-faint">
+            <span className="inline-flex items-center gap-1 border border-mp-set rounded px-1.5 py-0.5 text-mp-set font-semibold">S</span>
+            <span>Set</span>
+            <span className="inline-flex items-center gap-1 border border-mp-caderneta rounded px-1.5 py-0.5 text-mp-caderneta font-semibold">C</span>
+            <span>Caderneta</span>
+          </div>
+          <button
+            onClick={onExportar}
+            className="border border-mp-gold rounded-lg px-3 py-2 text-sm font-semibold text-mp-gold-strong hover:bg-mp-falta-bg whitespace-nowrap"
+          >
+            ⤓ Exportar Excel
+          </button>
+        </div>
       </div>
 
-      <div className="border border-mp-border rounded-2xl overflow-auto max-h-[70vh] bg-mp-surface">
+      <div className="flex flex-wrap items-center gap-4 mb-2 text-xs text-mp-ink-soft">
+        <span>{filtradas.length} moedas{temFiltro ? ' (filtradas)' : ''}</span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-mp-set" /> set {totalSet}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-mp-caderneta" /> caderneta {totalCad}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-mp-falta" /> não tem {totalFalta}
+        </span>
+        <span className="ml-auto font-medium text-mp-ink-soft">
+          Valor filtrado: <b className="font-serif text-mp-gold-strong">{eur(totalValor)}</b>
+        </span>
+      </div>
+
+      <div className="border border-mp-border rounded-2xl overflow-auto max-h-[65vh] bg-mp-surface">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 bg-mp-surface-muted text-mp-ink-soft text-left text-[11px] uppercase tracking-wide z-10">
             <tr>
-              {th('pais', 'País')}
-              {th('tipo', 'Tipo')}
-              {th('moeda', 'Moeda / Comemoração')}
-              {th('face', 'Face', 'text-right')}
-              {th('ano', 'Ano')}
-              {th('casa', 'Casa')}
+              {th('pais',   'País')}
+              {th('tipo',   'Tipo')}
+              {th('moeda',  'Moeda / Comemoração')}
+              {th('face',   'Face',   'text-right')}
+              {th('ano',    'Ano')}
+              {th('casa',   'Casa / Emissor')}
               {th('estado', 'Estado')}
-              {th('qtd', 'Qtd', 'text-right')}
-              {th('valor', 'Valor', 'text-right')}
+              {th('qtd',    'Qtd',    'text-right')}
+              {th('valor',  'Valor',  'text-right')}
             </tr>
           </thead>
           <tbody>
+            {ordenadas.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-4 py-10 text-center text-sm text-mp-ink-faint">
+                  Nenhuma moeda encontrada com os filtros actuais.
+                </td>
+              </tr>
+            )}
             {ordenadas.map((r) => {
               const est = estadoDe(r.item)
               return (
@@ -120,22 +228,31 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
                   className="border-t border-mp-border/60 hover:bg-mp-surface-muted cursor-pointer"
                 >
                   <td className="px-3 py-1.5 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5"><Flag code={r.coin.pais_codigo} size={14} /> {r.coin.pais_nome}</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Flag code={r.coin.pais_codigo} size={14} />
+                      {r.coin.pais_nome}
+                    </span>
                   </td>
-                  <td className="px-3 py-1.5 text-mp-ink-soft">{r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')}</td>
-                  <td className="px-3 py-1.5 max-w-[260px] truncate" title={String(valOf(r, 'moeda'))}>{valOf(r, 'moeda') || '—'}</td>
-                  <td className="px-3 py-1.5 text-right">{r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}</td>
+                  <td className="px-3 py-1.5 text-mp-ink-soft">
+                    {r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')}
+                  </td>
+                  <td className="px-3 py-1.5 max-w-[260px] truncate" title={String(valOf(r, 'moeda'))}>
+                    {valOf(r, 'moeda') || '—'}
+                  </td>
+                  <td className="px-3 py-1.5 text-right">
+                    {r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}
+                  </td>
                   <td className="px-3 py-1.5">{r.issue.ano}</td>
-                  <td className="px-3 py-1.5">{r.item?.casa_moeda || r.issue.casa_moeda || '—'}</td>
+                  <td className="px-3 py-1.5 text-mp-ink-soft">{r.issue.casa_moeda ?? '—'}</td>
                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                     <EstadoSelector est={est} onChange={(f) => onEstado(r, f)} />
                   </td>
-                  <td className="px-3 py-1.5">
-                    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => onQuantidade(r, (r.item?.quantidade ?? 0) - 1)}
                         disabled={(r.item?.quantidade ?? 0) <= 0}
-                        className="w-6 h-6 rounded border border-mp-border text-mp-ink-soft hover:bg-mp-surface disabled:opacity-30 leading-none"
+                        className="w-6 h-6 rounded border border-mp-border text-mp-ink-soft hover:bg-mp-surface-muted disabled:opacity-30 leading-none"
                         aria-label="Menos um"
                       >−</button>
                       <input
@@ -147,16 +264,32 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
                       />
                       <button
                         onClick={() => onQuantidade(r, (r.item?.quantidade ?? 0) + 1)}
-                        className="w-6 h-6 rounded border border-mp-border text-mp-ink-soft hover:bg-mp-surface leading-none"
+                        className="w-6 h-6 rounded border border-mp-border text-mp-ink-soft hover:bg-mp-surface-muted leading-none"
                         aria-label="Mais um"
                       >+</button>
                     </div>
                   </td>
-                  <td className="px-3 py-1.5 text-right text-mp-gold-strong">{est === 'naotem' ? '—' : eur(valorReal(r.coin, r.item))}</td>
+                  <td className="px-3 py-1.5 text-right text-mp-gold-strong">
+                    {est === 'naotem' ? '—' : eur(valorReal(r.coin, r.item))}
+                  </td>
                 </tr>
               )
             })}
           </tbody>
+          {filtradas.length > 0 && (
+            <tfoot className="sticky bottom-0 bg-mp-surface-muted border-t-2 border-mp-border">
+              <tr>
+                <td colSpan={6} className="px-3 py-2 text-xs text-mp-ink-soft font-medium">
+                  {filtradas.length} moedas · {totalSet} set · {totalCad} caderneta · {totalFalta} em falta
+                </td>
+                <td />
+                <td />
+                <td className="px-3 py-2 text-right font-serif font-semibold text-mp-gold-strong">
+                  {eur(totalValor)}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
