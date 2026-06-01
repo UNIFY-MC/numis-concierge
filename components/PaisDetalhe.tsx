@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { estadoDe, denomCurta } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
 import { casaAlemanha } from '@/lib/alemanha'
@@ -6,6 +6,7 @@ import type { DisplayRow, Estado } from '@/lib/types'
 import DenominacaoRow from './DenominacaoRow'
 import CoinList from './CoinList'
 import PaisIntro from './PaisIntro'
+import ColecaoAlema from './ColecaoAlema'
 import Flag from './Flag'
 
 interface PaisDetalheProps {
@@ -31,7 +32,7 @@ interface Aba {
   total: number
 }
 
-type AbaTipo = 'circulacao' | 'comemorativas'
+type AbaTipo = 'circulacao' | 'comemorativas' | 'colecao'
 
 function construirAba(rows: DisplayRow[], comemorativas: boolean): Aba {
   const anosSet = new Set<string>()
@@ -80,6 +81,10 @@ export default function PaisDetalhe({
   const [aba, setAba] = useState<AbaTipo>('circulacao')
   const [vistaComem, setVistaComem] = useState<'lista' | 'matriz'>('lista')
 
+  // Ao trocar de país, recomeçar na aba Circulação (a aba Coleção só existe em
+  // alguns países — evita ficar presa numa aba inválida).
+  useEffect(() => { setAba('circulacao'); setVistaComem('lista') }, [paisCodigo])
+
   // Stats e total sempre sobre o conjunto completo (chips mostram os totais reais).
   const statsTab = useMemo(() => ({
     circulacao: construirAba(rows.filter((r) => !r.coin.comemorativa), false),
@@ -104,6 +109,8 @@ export default function PaisDetalhe({
   const naColecao = stats.set + stats.cad
   const pct = totalTab > 0 ? Math.round((naColecao / totalTab) * 100) : 0
   const ehComem = aba === 'comemorativas'
+  const ehColecao = aba === 'colecao'
+  const ehAlemanha = paisCodigo.split('-')[0] === 'de'
   const casa = casaAlemanha(paisCodigo)
 
   function toggle(e: Estado) {
@@ -191,6 +198,14 @@ export default function PaisDetalhe({
           >
             Comemorativas ({statsTab.comemorativas.total})
           </button>
+          {ehAlemanha && (
+            <button
+              onClick={() => setAba('colecao')}
+              className={tabBase + (ehColecao ? ' bg-mp-gold text-white' : ' text-mp-ink-soft hover:bg-mp-surface-muted')}
+            >
+              Coleção
+            </button>
+          )}
           {ehComem && (
             <div className="ml-auto flex gap-1 rounded-lg bg-mp-surface-muted p-0.5">
               <button
@@ -209,7 +224,11 @@ export default function PaisDetalhe({
           )}
         </div>
 
-        {ehComem && vistaComem === 'lista' ? (
+        {ehColecao && ehAlemanha ? (
+          <div className="print:hidden">
+            <ColecaoAlema />
+          </div>
+        ) : ehComem && vistaComem === 'lista' ? (
           <div className="print:hidden py-1">
             {rowsComem.length === 0
               ? <p className="text-sm text-mp-ink-faint px-4 py-8 text-center">Sem comemorativas para este país.</p>
