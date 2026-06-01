@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { estadoDe, denomCurta } from '@/lib/types'
 import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
-import { numistaUrl } from '@/lib/numista'
 import type { DisplayRow, Estado } from '@/lib/types'
 import CoinDisc from './CoinDisc'
 import Flag from './Flag'
@@ -240,15 +239,6 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           <span className={lbl}>Observações</span>
           <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className={inp + ' resize-y'} />
         </label>
-
-        <a
-          href={numistaUrl(row.coin, row.issue)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-center border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted mb-2"
-        >
-          🔍 {row.coin.numista_id ? 'Abrir na Numista' : 'Procurar na Numista'}
-        </a>
 
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted">

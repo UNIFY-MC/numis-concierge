@@ -1,6 +1,5 @@
 import { estadoDe } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
-import { numistaUrl } from '@/lib/numista'
 import type { DisplayRow, Estado } from '@/lib/types'
 import CoinDisc from './CoinDisc'
 
@@ -53,15 +52,6 @@ export default function CoinList({ rows, onSelect, destaque }: CoinListProps) {
             <span className="text-sm text-mp-gold-strong font-serif w-16 text-right flex-none">
               {estado === 'naotem' ? '—' : eur(valorReal(r.coin, r.item))}
             </span>
-            <a
-              href={numistaUrl(r.coin, r.issue)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-[10px] text-mp-gold hover:underline flex-none w-14 text-right"
-            >
-              Numista ↗
-            </a>
           </button>
         )
       })}

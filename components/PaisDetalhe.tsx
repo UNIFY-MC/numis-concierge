@@ -79,11 +79,12 @@ export default function PaisDetalhe({
   // Filtro: chips set/caderneta/não tem escondem as restantes. Vazio = mostra tudo.
   const [filtro, setFiltro] = useState<Set<Estado>>(new Set())
   const [aba, setAba] = useState<AbaTipo>('circulacao')
-  const [vistaComem, setVistaComem] = useState<'lista' | 'matriz'>('lista')
+  // Vista lista/matriz, partilhada pelas abas Circulação e Comemorativas.
+  const [vista, setVista] = useState<'lista' | 'matriz'>('matriz')
 
   // Ao trocar de país, recomeçar na aba Circulação (a aba Coleção só existe em
   // alguns países — evita ficar presa numa aba inválida).
-  useEffect(() => { setAba('circulacao'); setVistaComem('lista') }, [paisCodigo])
+  useEffect(() => { setAba('circulacao'); setVista('matriz') }, [paisCodigo])
 
   // Stats e total sempre sobre o conjunto completo (chips mostram os totais reais).
   const statsTab = useMemo(() => ({
@@ -92,13 +93,15 @@ export default function PaisDetalhe({
   }), [rows])
 
   // Vista filtrada pelo estado selecionado.
-  const { circulacao, comemorativas, rowsComem } = useMemo(() => {
+  const { circulacao, comemorativas, rowsComem, rowsCirc } = useMemo(() => {
     const passa = (r: DisplayRow) => filtro.size === 0 || filtro.has(estadoDe(r.item))
     const rc = rows.filter((r) => r.coin.comemorativa && passa(r))
+    const rci = rows.filter((r) => !r.coin.comemorativa && passa(r))
     return {
-      circulacao: construirAba(rows.filter((r) => !r.coin.comemorativa && passa(r)), false),
+      circulacao: construirAba(rci, false),
       comemorativas: construirAba(rc, true),
       rowsComem: rc,
+      rowsCirc: rci,
     }
   }, [rows, filtro])
 
@@ -112,6 +115,7 @@ export default function PaisDetalhe({
   const ehColecao = aba === 'colecao'
   const ehAlemanha = paisCodigo.split('-')[0] === 'de'
   const casa = casaAlemanha(paisCodigo)
+  const rowsAtivos = ehComem ? rowsComem : rowsCirc
 
   function toggle(e: Estado) {
     setFiltro((cur) => {
@@ -206,17 +210,17 @@ export default function PaisDetalhe({
               Coleção
             </button>
           )}
-          {ehComem && (
+          {!ehColecao && (
             <div className="ml-auto flex gap-1 rounded-lg bg-mp-surface-muted p-0.5">
               <button
-                onClick={() => setVistaComem('lista')}
-                className={'px-3 py-1 text-xs font-medium rounded-md ' + (vistaComem === 'lista' ? 'bg-mp-surface text-mp-ink shadow-sm' : 'text-mp-ink-soft')}
+                onClick={() => setVista('lista')}
+                className={'px-3 py-1 text-xs font-medium rounded-md ' + (vista === 'lista' ? 'bg-mp-surface text-mp-ink shadow-sm' : 'text-mp-ink-soft')}
               >
                 ☰ Lista
               </button>
               <button
-                onClick={() => setVistaComem('matriz')}
-                className={'px-3 py-1 text-xs font-medium rounded-md ' + (vistaComem === 'matriz' ? 'bg-mp-surface text-mp-ink shadow-sm' : 'text-mp-ink-soft')}
+                onClick={() => setVista('matriz')}
+                className={'px-3 py-1 text-xs font-medium rounded-md ' + (vista === 'matriz' ? 'bg-mp-surface text-mp-ink shadow-sm' : 'text-mp-ink-soft')}
               >
                 ▦ Matriz
               </button>
@@ -228,11 +232,11 @@ export default function PaisDetalhe({
           <div className="print:hidden">
             <ColecaoAlema />
           </div>
-        ) : ehComem && vistaComem === 'lista' ? (
+        ) : vista === 'lista' ? (
           <div className="print:hidden py-1">
-            {rowsComem.length === 0
-              ? <p className="text-sm text-mp-ink-faint px-4 py-8 text-center">Sem comemorativas para este país.</p>
-              : <CoinList rows={rowsComem} onSelect={onSelect} destaque={filtro} />}
+            {rowsAtivos.length === 0
+              ? <p className="text-sm text-mp-ink-faint px-4 py-8 text-center">Sem {ehComem ? 'comemorativas' : 'moedas de circulação'} para este país.</p>
+              : <CoinList rows={rowsAtivos} onSelect={onSelect} destaque={filtro} />}
           </div>
         ) : (
         /* Matriz com scroll horizontal */
