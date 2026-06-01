@@ -28,6 +28,8 @@
   --mp-caderneta-bg:  #e4eefb;
   --mp-falta:         #a9703f;  /* cobre/castanho — não tem */
   --mp-falta-bg:      #f0e6da;
+  --mp-bebe:          #b07cc6;  /* lilás — caderneta bebé */
+  --mp-bebe-bg:       #f1e7f6;
 
   /* Discos de moeda */
   --mp-coin:          #b98c5a;  /* cobre/bronze da moeda */
@@ -56,6 +58,8 @@
   --color-mp-caderneta-bg:  var(--mp-caderneta-bg);
   --color-mp-falta:         var(--mp-falta);
   --color-mp-falta-bg:      var(--mp-falta-bg);
+  --color-mp-bebe:          var(--mp-bebe);
+  --color-mp-bebe-bg:       var(--mp-bebe-bg);
   --color-mp-coin:          var(--mp-coin);
   --color-mp-coin-dark:     var(--mp-coin-dark);
   --color-mp-coin-empty:    var(--mp-coin-empty);
