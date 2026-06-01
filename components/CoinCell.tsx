@@ -25,7 +25,7 @@ export default function CoinCell({ row, onClick, destaque }: CoinCellProps) {
   return (
     <div className={'flex flex-col items-center w-16 flex-none transition-opacity ' + (esbatido ? 'opacity-20' : 'opacity-100')}>
       <button onClick={onClick} className="relative group" aria-label={`${short} ${row.issue.ano}`}>
-        <CoinDisc short={short} ano={row.issue.ano} estado={estado} size={54} />
+        <CoinDisc short={short} ano={row.issue.casa_moeda ? `${row.issue.ano} ${row.issue.casa_moeda}` : row.issue.ano} estado={estado} size={54} />
         <span
           className={
             'absolute -top-0.5 right-1 w-2.5 h-2.5 rounded-full ' +

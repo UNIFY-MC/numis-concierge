@@ -73,9 +73,29 @@ async function api(path, { cacheKey } = {}) {
 const pic = (side) => side?.picture || side?.thumbnail || null
 const numFrom = (v) => (typeof v === 'number' ? v : (v && typeof v.numeric_value === 'number' ? v.numeric_value : null))
 
-function mapCoinDetail(d) {
+// Nome da comemoração do título Numista: "2 Euros (Programa Erasmus)" → "Programa Erasmus".
+// Para circulação ("2 Euros (2nd map)") o parêntese é variante de desenho, não
+// comemoração — por isso só extraímos tema quando o tipo é comemorativo.
+function temaDoTitulo(title) {
+  const m = (title || '').match(/\(([^)]+)\)\s*$/)
+  return m ? m[1].trim() : null
+}
+
+// Descrição + legenda (lettering) de um lado/orla, juntos num texto único.
+function descLetra(side) {
+  const parts = [side?.description, side?.lettering].filter(Boolean)
+  return parts.length ? parts.join(' — ') : null
+}
+
+// Referência de um catálogo específico (KM, Schön) a partir de references[].
+function refDe(d, re) {
+  const r = (d.references || []).find((x) => re.test(x?.catalogue?.code || x?.catalogue?.name || ''))
+  return r?.number ? String(r.number) : null
+}
+
+function mapCoinDetail(d, { comemorativa = false } = {}) {
   const comp = d.composition?.text || d.composition?.english_name || (typeof d.composition === 'string' ? d.composition : null)
-  const km = (d.references || []).find((r) => /km/i.test(r?.catalogue?.code || r?.catalogue?.name || ''))
+  const tema = comemorativa ? temaDoTitulo(d.title) : null
   return {
     numista_id: d.id ?? null,
     anverso_img: pic(d.obverse) || d.obverse_thumbnail || null,
@@ -85,7 +105,15 @@ function mapCoinDetail(d) {
     espessura_mm: numFrom(d.thickness),
     composicao: comp,
     forma: d.shape || null,
-    km_ref: km?.number ? String(km.number) : null,
+    km_ref: refDe(d, /km/i),
+    schon_ref: refDe(d, /sch(ö|o)n/i),
+    anverso_desc: descLetra(d.obverse),
+    reverso_desc: descLetra(d.reverse),
+    orla_desc: descLetra(d.edge),
+    orla_tipo: d.edge?.type || null,
+    serie: d.series || null,
+    demonetizada: d.demonetization?.is_demonetized === true,
+    ...(tema ? { tema, titulo: d.title } : {}),
   }
 }
 
@@ -172,23 +200,50 @@ async function probe() {
   console.log('\nTYPE euro escolhido:', JSON.stringify(um, null, 2))
   if (um?.id) {
     const detail = await api(`/types/${um.id}?lang=en`)
-    const issues = await api(`/types/${um.id}/issues?lang=en`)
+    const issuesData = await api(`/types/${um.id}/issues?lang=en`)
+    const issues = issuesData.issues || issuesData || []
     console.log('\n➡️  Mapeado para a nossa BD:', JSON.stringify(mapCoinDetail(detail), null, 2))
-    console.log('\nISSUES (1º):', JSON.stringify((issues.issues || issues || [])[0], null, 2))
+    console.log(`\nISSUES: ${issues.length} variantes (ano × casa da moeda)`)
+    console.log('\nISSUE COMPLETO (1º) — confirmar se há foto/casa da moeda por ano:')
+    console.log(JSON.stringify(issues[0], null, 2))
+    const comFoto = issues.filter((i) => pic(i.obverse) || pic(i.reverse) || i.picture || i.obverse_picture)
+    const comMint = issues.filter((i) => i.mint_letter || i.mintmark || i.mint)
+    console.log(`\n🔬 Issues com foto própria (por ano): ${comFoto.length}/${issues.length}`)
+    console.log(`🔬 Issues com casa da moeda (mint_letter): ${comMint.length}/${issues.length}`)
+    if (comFoto.length === 0) {
+      console.log('   → A API NÃO dá foto por ano. A única foto fiável é a do tipo (genérica) ou a tua própria.')
+    } else {
+      console.log('   → A API DÁ foto por ano! Vale guardar anverso_img/reverso_img por issue.')
+    }
   }
-  console.log(`\n✅ Probe feito em ${reqCount} pedidos. Confirma 1€/2€ moderno com numista_id, foto e tiragem.`)
+  console.log(`\n✅ Probe feito em ${reqCount} pedidos.`)
 }
 
 // ─── Match de um catalog_coin a um type da Numista ───────────────────────────
+const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 2)
+
 function matchType(coin, types) {
   const facial = coin.valor_facial != null ? Number(coin.valor_facial) : null
-  // types já são só euro; casar pelo valor facial parseado do título.
   const cands = types.filter((t) => {
     const val = facialFromTitle(t.title)
     return facial != null && val != null && Math.abs(val - facial) < 0.001
   })
+  if (coin.comemorativa) {
+    // Comemorativas: casar por sobreposição de palavras do nosso tema/título com o
+    // parêntese do título Numista ("2 Euros (Tratado de Roma)" → "Tratado de Roma").
+    const nosso = new Set([...norm(coin.tema), ...norm(coin.denominacao), ...norm(coin.titulo)])
+    if (nosso.size === 0) return null
+    let best = null, bestScore = 0
+    for (const t of cands) {
+      const alvo = norm(temaDoTitulo(t.title))
+      if (alvo.length === 0) continue
+      const score = alvo.filter((w) => nosso.has(w)).length / alvo.length
+      if (score > bestScore) { bestScore = score; best = t }
+    }
+    return bestScore >= 0.5 ? best : null
+  }
   if (cands.length === 1) return cands[0]
-  if (coin.comemorativa) return null // comemorativas: match por tema/ano numa 2ª passagem
   // circulação: preferir a de gama de anos mais larga (base / "2nd map" corrente)
   return cands.sort((a, b) =>
     ((b.max_year || 0) - (b.min_year || 0)) - ((a.max_year || 0) - (a.min_year || 0)))[0] || null
@@ -198,7 +253,7 @@ function matchType(coin, types) {
 async function run() {
   const { data: coins, error } = await supabase
     .from('catalog_coins')
-    .select('id, pais_codigo, pais_nome, valor_facial, denominacao, comemorativa, numista_id')
+    .select('id, pais_codigo, pais_nome, valor_facial, denominacao, comemorativa, numista_id, tema, titulo')
     .is('numista_id', null)
   if (error) { console.error('❌', error.message); process.exit(1) }
 
@@ -206,7 +261,8 @@ async function run() {
 
   const typesCache = new Map()
   const issuersAvisados = new Set()
-  let feitos = 0, semMatch = 0, semCodigo = 0
+  let feitos = 0, semMatch = 0, semCodigo = 0, comemFeitas = 0
+  const comemSemMatch = []
 
   for (const coin of coins) {
     if (feitos >= LIMIT) break
@@ -233,14 +289,21 @@ async function run() {
     }
 
     const t = matchType(coin, types)
-    if (!t) { semMatch++; continue }
+    if (!t) {
+      semMatch++
+      if (coin.comemorativa) comemSemMatch.push(`${coin.pais_nome}: ${coin.tema || coin.denominacao || coin.titulo || coin.id}`)
+      continue
+    }
+    if (coin.comemorativa) comemFeitas++
 
     const detail = await api(`/types/${t.id}?lang=en`, { cacheKey: `type-${t.id}` })
-    const patch = mapCoinDetail(detail)
+    const patch = mapCoinDetail(detail, { comemorativa: coin.comemorativa })
     const { error: upErr } = await supabase.from('catalog_coins').update(patch).eq('id', coin.id)
     if (upErr) { console.error(`❌ update coin ${coin.id}:`, upErr.message); continue }
 
-    // issues: tiragem + numista_issue_id por ano
+    // issues: actualiza tiragem/casa/foto por ano que JÁ temos (match por ano).
+    // NOTA: não inserimos novas variantes (ano×casa) para não inflar o catálogo
+    // nem distorcer a matriz/percentagens — só enriquecemos as issues existentes.
     try {
       const issuesData = await api(`/types/${t.id}/issues?lang=en`, { cacheKey: `issues-${t.id}` })
       const issues = issuesData.issues || issuesData || []
@@ -249,11 +312,17 @@ async function run() {
       for (const oi of ourIssues || []) {
         const ano = oi.ano_gregoriano || parseInt(oi.ano, 10)
         const ni = issues.find((x) => (x.gregorian_year || x.year) === ano)
-        if (ni) {
-          await supabase.from('catalog_issues')
-            .update({ numista_issue_id: ni.id ?? null, tiragem: numFrom(ni.mintage) ?? null })
-            .eq('id', oi.id)
+        if (!ni) continue
+        const dados = {
+          numista_issue_id: ni.id ?? null,
+          tiragem: numFrom(ni.mintage) ?? null,
+          casa_moeda: ni.mint_letter || ni.mintmark || ni.mint || null,
         }
+        const fa = pic(ni.obverse) || ni.obverse_picture || null
+        const fr = pic(ni.reverse) || ni.reverse_picture || null
+        if (fa) dados.anverso_img = fa
+        if (fr) dados.reverso_img = fr
+        await supabase.from('catalog_issues').update(dados).eq('id', oi.id)
       }
     } catch (e) { console.warn(`⚠️  issues ${t.id}: ${e.message}`) }
 
@@ -261,8 +330,12 @@ async function run() {
     if (feitos % 10 === 0) console.log(`  …${feitos} coins enriquecidos (${reqCount} pedidos)`)
   }
 
-  console.log(`\n✅ Enriquecidos ${feitos} coins · ${semMatch} sem match · ${semCodigo} sem código de emissor · ${reqCount} pedidos usados.`)
-  if (semMatch > 0) console.log('   (sem match = comemorativas/casos a tratar numa 2ª passagem por ano)')
+  console.log(`\n✅ Enriquecidos ${feitos} coins (${comemFeitas} comemorativas) · ${semMatch} sem match · ${semCodigo} sem código de emissor · ${reqCount} pedidos usados.`)
+  if (comemSemMatch.length > 0) {
+    console.log(`\n⚠️  ${comemSemMatch.length} comemorativas sem match (rever tema/título ou baixar limiar):`)
+    for (const c of comemSemMatch.slice(0, 40)) console.log(`   · ${c}`)
+    if (comemSemMatch.length > 40) console.log(`   … e mais ${comemSemMatch.length - 40}`)
+  }
 }
 
 await (PROBE ? probe() : run())

@@ -51,6 +51,8 @@ export interface CatalogIssue {
   tiragem_bu: number | null
   data_emissao: string | null
   numista_issue_id: number | null
+  anverso_img: string | null
+  reverso_img: string | null
   etiqueta: string | null
   html_est0: 0 | 1 | 2
   html_obs: string | null

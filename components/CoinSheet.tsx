@@ -52,14 +52,27 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
   const base = parseFloat(valorBase) || 0
   const estimado = tenho ? Math.max(1, quantidade) * base * gradeMult(grau) : 0
 
-  const { anverso_img, reverso_img, peso_g, diametro_mm, composicao, km_ref } = row.coin
+  const { peso_g, diametro_mm, composicao, km_ref, schon_ref, anverso_desc, reverso_desc, orla_desc } = row.coin
+  // Prioridade: foto do exemplar do utilizador > foto do ano (issue) > foto genérica do tipo.
+  const fotoUser = item?.foto1 || null
+  const anverso_img = fotoUser || row.issue.anverso_img || row.coin.anverso_img
+  const reverso_img = fotoUser ? null : (row.issue.reverso_img || row.coin.reverso_img)
+  const fotoEspecifica = !!fotoUser || !!row.issue.anverso_img
+  const fotoGenerica = !fotoEspecifica && !!row.coin.anverso_img
   const temFotos = !!(anverso_img || reverso_img)
   const specs = [
     peso_g != null && `${peso_g} g`,
     diametro_mm != null && `⌀ ${diametro_mm} mm`,
     composicao,
     km_ref && `KM# ${km_ref}`,
+    schon_ref && `Schön# ${schon_ref}`,
   ].filter(Boolean) as string[]
+
+  const descricoes = [
+    anverso_desc && { t: 'Anverso', d: anverso_desc },
+    reverso_desc && { t: 'Reverso', d: reverso_desc },
+    orla_desc && { t: 'Orla', d: orla_desc },
+  ].filter(Boolean) as { t: string; d: string }[]
 
   async function guardar() {
     setSaving(true)
@@ -95,7 +108,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
               {row.coin.denominacao ?? row.coin.titulo} · <strong>{row.issue.ano}</strong>
             </p>
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {[row.coin.tipo_emissao, `Face ${eur(facial)}`, row.issue.etiqueta, short]
+              {[row.coin.comemorativa && row.coin.tema, row.coin.tipo_emissao, `Face ${eur(facial)}`, row.issue.casa_moeda && `Casa ${row.issue.casa_moeda}`, row.issue.etiqueta, short]
                 .filter(Boolean)
                 .map((chip, i) => (
                   <span key={i} className="text-[10px] bg-mp-surface-muted text-mp-ink-soft rounded-full px-2 py-0.5">{chip}</span>
@@ -108,14 +121,19 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         {(temFotos || specs.length > 0) && (
           <div className="mb-5">
             {temFotos && (
-              <div className="flex justify-center gap-4 mb-3">
-                {anverso_img && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={anverso_img} alt="Anverso" className="h-28 w-28 object-contain rounded-full bg-mp-surface-muted ring-1 ring-mp-border" />
-                )}
-                {reverso_img && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={reverso_img} alt="Reverso" className="h-28 w-28 object-contain rounded-full bg-mp-surface-muted ring-1 ring-mp-border" />
+              <div className="mb-3">
+                <div className="flex justify-center gap-4 mb-1">
+                  {anverso_img && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={anverso_img} alt="Anverso" className="h-28 w-28 object-contain rounded-full bg-mp-surface-muted ring-1 ring-mp-border" />
+                  )}
+                  {reverso_img && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={reverso_img} alt="Reverso" className="h-28 w-28 object-contain rounded-full bg-mp-surface-muted ring-1 ring-mp-border" />
+                  )}
+                </div>
+                {fotoGenerica && (
+                  <p className="text-center text-[9px] text-mp-ink-faint">Foto de referência do tipo (pode ser de outro ano ou casa da moeda)</p>
                 )}
               </div>
             )}
@@ -126,6 +144,16 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {descricoes.length > 0 && (
+          <div className="mb-5 space-y-1.5">
+            {descricoes.map((x) => (
+              <p key={x.t} className="text-[11px] text-mp-ink-soft leading-snug">
+                <span className="uppercase tracking-wide text-mp-ink-faint">{x.t}</span> · {x.d}
+              </p>
+            ))}
           </div>
         )}
 
