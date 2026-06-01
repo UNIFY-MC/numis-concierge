@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { estadoDe } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
 import type { DisplayRow } from '@/lib/types'
@@ -56,6 +56,9 @@ function EstadoSelector({ est, onChange }: {
 }
 
 const selectCls = 'h-8 rounded-lg border border-mp-border bg-mp-surface px-2 text-sm text-mp-ink outline-none focus:border-mp-gold min-w-[130px]'
+// Render por páginas: o catálogo tem ~6 mil linhas; pintar tudo de uma vez
+// trava o browser. Filtros/ordenação/somas continuam sobre o conjunto completo.
+const PAGINA_TAM = 200
 
 export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, onEstado }: TabelaViewProps) {
   const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: 'pais', dir: 1 })
@@ -63,6 +66,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
   const [filtroTipo, setFiltroTipo] = useState<'' | 'circulacao' | 'comemorativa'>('')
   const [filtroAno, setFiltroAno] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<'' | 'set' | 'caderneta' | 'naotem'>('')
+  const [pagina, setPagina] = useState(0)
 
   const { paises, anos } = useMemo(() => {
     const ps = new Map<string, string>()
@@ -104,6 +108,16 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
       return cmp * sort.dir
     })
   }, [filtradas, sort])
+
+  // Voltar à 1.ª página sempre que o conjunto/ordem muda (filtro ou sort).
+  useEffect(() => { setPagina(0) }, [filtroPais, filtroTipo, filtroAno, filtroEstado, sort])
+
+  const totalPaginas = Math.max(1, Math.ceil(ordenadas.length / PAGINA_TAM))
+  const paginaSegura = Math.min(pagina, totalPaginas - 1)
+  const visiveis = useMemo(
+    () => ordenadas.slice(paginaSegura * PAGINA_TAM, (paginaSegura + 1) * PAGINA_TAM),
+    [ordenadas, paginaSegura],
+  )
 
   const totalValor = useMemo(
     () => filtradas.reduce((s, r) => s + (estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)), 0),
@@ -196,6 +210,29 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
         </span>
       </div>
 
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-center gap-3 mb-2 text-sm">
+          <button
+            onClick={() => setPagina((p) => Math.max(0, p - 1))}
+            disabled={paginaSegura <= 0}
+            className="border border-mp-border rounded-lg px-3 py-1 text-mp-ink-soft hover:bg-mp-surface-muted disabled:opacity-30"
+          >
+            ← Anterior
+          </button>
+          <span className="text-mp-ink-soft">
+            Página <b className="text-mp-ink">{paginaSegura + 1}</b> de {totalPaginas}
+            <span className="text-mp-ink-faint"> · {ordenadas.length} linhas</span>
+          </span>
+          <button
+            onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+            disabled={paginaSegura >= totalPaginas - 1}
+            className="border border-mp-border rounded-lg px-3 py-1 text-mp-ink-soft hover:bg-mp-surface-muted disabled:opacity-30"
+          >
+            Seguinte →
+          </button>
+        </div>
+      )}
+
       <div className="border border-mp-border rounded-2xl overflow-auto max-h-[65vh] bg-mp-surface">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 bg-mp-surface-muted text-mp-ink-soft text-left text-[11px] uppercase tracking-wide z-10">
@@ -219,7 +256,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
                 </td>
               </tr>
             )}
-            {ordenadas.map((r) => {
+            {visiveis.map((r) => {
               const est = estadoDe(r.item)
               return (
                 <tr

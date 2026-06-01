@@ -49,3 +49,6 @@ next-env.d.ts
 
 # Artefacto de descoberta do BCE (regenerável: node scripts/bce-descobrir.mjs)
 bce-estrutura.json
+
+# Artefacto de scrape comemorativas BCE (regenerável)
+bce-comemorativas.json
