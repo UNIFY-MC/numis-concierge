@@ -3,6 +3,7 @@ import { estadoDe, denomCurta } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
 import type { DisplayRow, Estado } from '@/lib/types'
 import DenominacaoRow from './DenominacaoRow'
+import CoinList from './CoinList'
 import Flag from './Flag'
 
 interface PaisDetalheProps {
@@ -72,22 +73,38 @@ function construirAba(rows: DisplayRow[], comemorativas: boolean): Aba {
 export default function PaisDetalhe({
   paisCodigo, paisNome, rows, onVoltar, onSelect, onImprimir,
 }: PaisDetalheProps) {
-  const [destaque, setDestaque] = useState<Set<Estado>>(new Set())
+  // Filtro: chips set/caderneta/não tem escondem as restantes. Vazio = mostra tudo.
+  const [filtro, setFiltro] = useState<Set<Estado>>(new Set())
   const [aba, setAba] = useState<AbaTipo>('circulacao')
+  const [vistaComem, setVistaComem] = useState<'lista' | 'matriz'>('lista')
 
-  const { circulacao, comemorativas } = useMemo(() => ({
+  // Stats e total sempre sobre o conjunto completo (chips mostram os totais reais).
+  const statsTab = useMemo(() => ({
     circulacao: construirAba(rows.filter((r) => !r.coin.comemorativa), false),
     comemorativas: construirAba(rows.filter((r) => r.coin.comemorativa), true),
   }), [rows])
 
+  // Vista filtrada pelo estado selecionado.
+  const { circulacao, comemorativas, rowsComem } = useMemo(() => {
+    const passa = (r: DisplayRow) => filtro.size === 0 || filtro.has(estadoDe(r.item))
+    const rc = rows.filter((r) => r.coin.comemorativa && passa(r))
+    return {
+      circulacao: construirAba(rows.filter((r) => !r.coin.comemorativa && passa(r)), false),
+      comemorativas: construirAba(rc, true),
+      rowsComem: rc,
+    }
+  }, [rows, filtro])
+
   const ativa = aba === 'circulacao' ? circulacao : comemorativas
-  const { anos, linhas, stats } = ativa
+  const { anos, linhas } = ativa
+  const stats = (aba === 'circulacao' ? statsTab.circulacao : statsTab.comemorativas).stats
+  const totalTab = (aba === 'circulacao' ? statsTab.circulacao : statsTab.comemorativas).total
   const naColecao = stats.set + stats.cad
-  const pct = ativa.total > 0 ? Math.round((naColecao / ativa.total) * 100) : 0
+  const pct = totalTab > 0 ? Math.round((naColecao / totalTab) * 100) : 0
   const ehComem = aba === 'comemorativas'
 
   function toggle(e: Estado) {
-    setDestaque((cur) => {
+    setFiltro((cur) => {
       const next = new Set(cur)
       if (next.has(e)) next.delete(e)
       else next.add(e)
@@ -122,27 +139,27 @@ export default function PaisDetalhe({
           <Flag code={paisCodigo} size={26} />
           <div className="flex-1 min-w-[160px]">
             <h2 className="font-serif text-lg font-semibold text-mp-ink">{paisNome}</h2>
-            <p className="text-xs text-mp-ink-faint">{ativa.total} moedas · {naColecao} na coleção · {pct}%</p>
+            <p className="text-xs text-mp-ink-faint">{totalTab} moedas · {naColecao} na coleção · {pct}%</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <button
               type="button"
               onClick={() => toggle('set')}
-              className={chipBase + ' bg-mp-set-bg text-mp-set' + chipAtivo(destaque.has('set'))}
+              className={chipBase + ' bg-mp-set-bg text-mp-set' + chipAtivo(filtro.has('set'))}
             >
               <span className="w-2 h-2 rounded-full bg-mp-set" /> set {stats.set} · {eur(stats.vSet)}
             </button>
             <button
               type="button"
               onClick={() => toggle('caderneta')}
-              className={chipBase + ' bg-mp-caderneta-bg text-mp-caderneta' + chipAtivo(destaque.has('caderneta'))}
+              className={chipBase + ' bg-mp-caderneta-bg text-mp-caderneta' + chipAtivo(filtro.has('caderneta'))}
             >
               <span className="w-2 h-2 rounded-full bg-mp-caderneta" /> caderneta {stats.cad} · {eur(stats.vCad)}
             </button>
             <button
               type="button"
               onClick={() => toggle('naotem')}
-              className={chipBase + ' bg-mp-falta-bg text-mp-falta' + chipAtivo(destaque.has('naotem'))}
+              className={chipBase + ' bg-mp-falta-bg text-mp-falta' + chipAtivo(filtro.has('naotem'))}
             >
               <span className="w-2 h-2 rounded-full bg-mp-falta" /> não tem {stats.falta}
             </button>
@@ -164,11 +181,34 @@ export default function PaisDetalhe({
             onClick={() => setAba('comemorativas')}
             className={tabBase + (aba === 'comemorativas' ? ' bg-mp-gold text-white' : ' text-mp-ink-soft hover:bg-mp-surface-muted')}
           >
-            Comemorativas ({comemorativas.total})
+            Comemorativas ({statsTab.comemorativas.total})
           </button>
+          {ehComem && (
+            <div className="ml-auto flex gap-1 rounded-lg bg-mp-surface-muted p-0.5">
+              <button
+                onClick={() => setVistaComem('lista')}
+                className={'px-3 py-1 text-xs font-medium rounded-md ' + (vistaComem === 'lista' ? 'bg-mp-surface text-mp-ink shadow-sm' : 'text-mp-ink-soft')}
+              >
+                ☰ Lista
+              </button>
+              <button
+                onClick={() => setVistaComem('matriz')}
+                className={'px-3 py-1 text-xs font-medium rounded-md ' + (vistaComem === 'matriz' ? 'bg-mp-surface text-mp-ink shadow-sm' : 'text-mp-ink-soft')}
+              >
+                ▦ Matriz
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Matriz com scroll horizontal */}
+        {ehComem && vistaComem === 'lista' ? (
+          <div className="print:hidden py-1">
+            {rowsComem.length === 0
+              ? <p className="text-sm text-mp-ink-faint px-4 py-8 text-center">Sem comemorativas para este país.</p>
+              : <CoinList rows={rowsComem} onSelect={onSelect} destaque={filtro} />}
+          </div>
+        ) : (
+        /* Matriz com scroll horizontal */
         <div className="overflow-x-auto print:hidden">
           {linhas.length === 0 ? (
             <p className="text-sm text-mp-ink-faint px-4 py-8 text-center">
@@ -192,13 +232,14 @@ export default function PaisDetalhe({
                     anos={anos}
                     porAno={l.porAno}
                     onSelect={onSelect}
-                    destaque={destaque}
+                    destaque={filtro}
                   />
                 ))}
               </div>
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   )

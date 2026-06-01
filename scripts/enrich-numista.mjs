@@ -38,6 +38,7 @@ if (!SUPA_URL || !SUPA_KEY || !NUMISTA_KEY) {
 const args = process.argv.slice(2)
 const PROBE = args.includes('--probe')
 const COMEMORATIVAS = args.includes('--comemorativas')
+const SYNC_ISSUES = args.includes('--sync-issues')
 const limitArg = args.indexOf('--limit')
 const LIMIT = limitArg >= 0 ? parseInt(args[limitArg + 1], 10) : Infinity
 
@@ -441,4 +442,68 @@ async function runComemorativas() {
   }
 }
 
-await (PROBE ? probe() : COMEMORATIVAS ? runComemorativas() : run())
+// ─── Sincroniza catalog_issues de um coin com os issues da Numista ───────────
+// Cria uma linha por ano × casa da moeda (séries DE: A/D/F/G/J). Para não perder
+// marcações da coleção, reaproveita uma issue existente do ano sem casa da moeda
+// antes de inserir novas. Usa cache → 0 quota se os issues já lá estiverem.
+async function syncIssuesForCoin(coinId, typeId) {
+  try {
+    const issuesData = await api(`/types/${typeId}/issues?lang=en`, { cacheKey: `issues-${typeId}` })
+    const issues = issuesData.issues || issuesData || []
+    const { data: ourIssues } = await supabase
+      .from('catalog_issues').select('id, ano, ano_gregoriano, casa_moeda').eq('catalog_coin_id', coinId)
+    const existentes = ourIssues || []
+    const usados = new Set()
+    const anoDe = (oi) => oi.ano_gregoriano || parseInt(oi.ano, 10)
+
+    for (const ni of issues) {
+      const ano = ni.gregorian_year || ni.year
+      if (!ano) continue
+      const mint = ni.mint_letter || ni.mintmark || ni.mint || null
+      const fotoA = pic(ni.obverse) || ni.obverse_picture || null
+      const fotoR = pic(ni.reverse) || ni.reverse_picture || null
+      const dados = {
+        numista_issue_id: ni.id ?? null,
+        tiragem: numFrom(ni.mintage) ?? null,
+        casa_moeda: mint,
+        ...(fotoA ? { anverso_img: fotoA } : {}),
+        ...(fotoR ? { reverso_img: fotoR } : {}),
+      }
+      // 1) match exacto ano+casa; 2) reaproveitar issue do ano ainda sem casa (preserva coleção)
+      let alvo = existentes.find((oi) => !usados.has(oi.id) && anoDe(oi) === ano && (oi.casa_moeda || null) === mint)
+      if (!alvo) alvo = existentes.find((oi) => !usados.has(oi.id) && anoDe(oi) === ano && !oi.casa_moeda)
+      if (alvo) {
+        usados.add(alvo.id)
+        await supabase.from('catalog_issues').update(dados).eq('id', alvo.id)
+      } else {
+        await supabase.from('catalog_issues').insert({
+          catalog_coin_id: coinId, ano: String(ano), ano_gregoriano: ano,
+          html_est0: 0, html_qf: 0, html_verde: false, ...dados,
+        })
+      }
+    }
+  } catch (e) { console.warn(`⚠️  issues ${typeId}: ${e.message}`) }
+}
+
+// ─── Modo --sync-issues: repovoa issues por casa da moeda (séries) ───────────
+// Para coins já enriquecidos, sem voltar a casar tipos. Filtra por --pais XX.
+async function runSyncIssues() {
+  let q = supabase.from('catalog_coins')
+    .select('id, pais_codigo, pais_nome, numista_id')
+    .not('numista_id', 'is', null)
+  const paisArg = args.indexOf('--pais')
+  if (paisArg >= 0) q = q.eq('pais_codigo', args[paisArg + 1])
+  const { data: coins, error } = await q
+  if (error) { console.error('❌', error.message); process.exit(1) }
+  console.log(`🔁 ${coins.length} coins com numista_id para re-sincronizar issues. Limite: ${LIMIT === Infinity ? 'todos' : LIMIT}`)
+  let feitos = 0
+  for (const coin of coins) {
+    if (feitos >= LIMIT) break
+    await syncIssuesForCoin(coin.id, coin.numista_id)
+    feitos++
+    if (feitos % 20 === 0) console.log(`  …${feitos} coins re-sincronizados (${reqCount} pedidos)`)
+  }
+  console.log(`\n✅ ${feitos} coins re-sincronizados · ${reqCount} pedidos usados.`)
+}
+
+await (PROBE ? probe() : SYNC_ISSUES ? runSyncIssues() : COMEMORATIVAS ? runComemorativas() : run())
