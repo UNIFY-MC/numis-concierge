@@ -13,7 +13,8 @@ Segue as convenções globais em ~/.claude/CLAUDE.md.
 - `app/(app)/moedas/page.tsx` — só composição
 
 ## Modelo de dados
-`moedas` (Supabase): id uuid PK, nome text, pais text, ano int, valor_facial text, metal text, estado enum(VF/XF/AU/UNC/PF), notas text, created_at, updated_at
+Schema Supabase: `numis` (isolado do `public` dos outros projectos no mesmo cluster)
+`numis.moedas`: id uuid PK, nome text, pais text, ano int, valor_facial text, metal text, estado enum(VF/XF/AU/UNC/PF), notas text, created_at, updated_at
 
 ## Env vars
 Ver `.env.local.example` — Supabase + Anthropic + Resend

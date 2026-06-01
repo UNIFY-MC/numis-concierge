@@ -7,4 +7,6 @@ if (!url || !key) {
   throw new Error('NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY em falta')
 }
 
-export const supabase = createClient(url, key)
+export const supabase = createClient(url, key, {
+  db: { schema: 'numis' },
+})
