@@ -1,6 +1,6 @@
 import { estadoDe, denomCurta } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
-import { numistaSearchUrl } from '@/lib/numista'
+import { numistaUrl } from '@/lib/numista'
 import type { DisplayRow, Estado } from '@/lib/types'
 import CoinDisc from './CoinDisc'
 
@@ -43,7 +43,7 @@ export default function CoinCell({ row, onClick, destaque }: CoinCellProps) {
         {estado === 'naotem' ? '—' : eur(valor)}
       </span>
       <a
-        href={numistaSearchUrl(row.coin, row.issue)}
+        href={numistaUrl(row.coin, row.issue)}
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}

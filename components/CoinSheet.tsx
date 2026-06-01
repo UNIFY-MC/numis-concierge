@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { estadoDe, denomCurta } from '@/lib/types'
 import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
-import { numistaSearchUrl } from '@/lib/numista'
+import { numistaUrl } from '@/lib/numista'
 import type { DisplayRow, Estado } from '@/lib/types'
 import CoinDisc from './CoinDisc'
 import Flag from './Flag'
@@ -52,6 +52,15 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
   const base = parseFloat(valorBase) || 0
   const estimado = tenho ? Math.max(1, quantidade) * base * gradeMult(grau) : 0
 
+  const { anverso_img, reverso_img, peso_g, diametro_mm, composicao, km_ref } = row.coin
+  const temFotos = !!(anverso_img || reverso_img)
+  const specs = [
+    peso_g != null && `${peso_g} g`,
+    diametro_mm != null && `⌀ ${diametro_mm} mm`,
+    composicao,
+    km_ref && `KM# ${km_ref}`,
+  ].filter(Boolean) as string[]
+
   async function guardar() {
     setSaving(true)
     try {
@@ -95,6 +104,30 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           </div>
           <button onClick={onClose} className="text-mp-ink-faint hover:text-mp-ink text-xl leading-none">×</button>
         </div>
+
+        {(temFotos || specs.length > 0) && (
+          <div className="mb-5">
+            {temFotos && (
+              <div className="flex justify-center gap-4 mb-3">
+                {anverso_img && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={anverso_img} alt="Anverso" className="h-28 w-28 object-contain rounded-full bg-mp-surface-muted ring-1 ring-mp-border" />
+                )}
+                {reverso_img && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={reverso_img} alt="Reverso" className="h-28 w-28 object-contain rounded-full bg-mp-surface-muted ring-1 ring-mp-border" />
+                )}
+              </div>
+            )}
+            {specs.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {specs.map((s, i) => (
+                  <span key={i} className="text-[10px] bg-mp-surface-muted text-mp-ink-soft rounded-full px-2 py-0.5">{s}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mb-4">
           <span className={lbl}>Estado de posse</span>
@@ -153,12 +186,12 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         </label>
 
         <a
-          href={numistaSearchUrl(row.coin, row.issue)}
+          href={numistaUrl(row.coin, row.issue)}
           target="_blank"
           rel="noopener noreferrer"
           className="block text-center border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted mb-2"
         >
-          🔍 Abrir na Numista
+          🔍 {row.coin.numista_id ? 'Abrir na Numista' : 'Procurar na Numista'}
         </a>
 
         <div className="flex gap-2">
