@@ -5,6 +5,7 @@ import { casaAlemanha } from '@/lib/alemanha'
 import type { DisplayRow, Estado } from '@/lib/types'
 import DenominacaoRow from './DenominacaoRow'
 import CoinList from './CoinList'
+import PaisIntro from './PaisIntro'
 import Flag from './Flag'
 
 interface PaisDetalheProps {
@@ -173,6 +174,8 @@ export default function PaisDetalhe({
             Valor da coleção <b className="font-serif text-mp-gold-strong">{eur(stats.vSet + stats.vCad)}</b>
           </span>
         </div>
+
+        <PaisIntro paisCodigo={paisCodigo} />
 
         {/* Tabs Circulação / Comemorativas */}
         <div className="flex gap-2 px-4 pt-3 print:hidden">
