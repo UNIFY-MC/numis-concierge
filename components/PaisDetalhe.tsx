@@ -21,51 +21,70 @@ interface LinhaMatriz {
   porAno: Map<string, DisplayRow[]>
 }
 
+interface Aba {
+  anos: string[]
+  linhas: LinhaMatriz[]
+  stats: { set: number; cad: number; falta: number; vSet: number; vCad: number }
+  total: number
+}
+
+type AbaTipo = 'circulacao' | 'comemorativas'
+
+function construirAba(rows: DisplayRow[], comemorativas: boolean): Aba {
+  const anosSet = new Set<string>()
+  const linhasMap = new Map<string, LinhaMatriz>()
+  const stats = { set: 0, cad: 0, falta: 0, vSet: 0, vCad: 0 }
+
+  for (const r of rows) {
+    anosSet.add(r.issue.ano)
+    // Circulação: uma linha por valor facial. Comemorativas: uma linha por tipo (coin.id).
+    const key = comemorativas ? `c${r.coin.id}` : `s${r.coin.valor_facial}`
+    const label = comemorativas
+      ? (r.coin.tema || r.coin.denominacao || r.coin.titulo || '2€')
+      : denomCurta(r.coin.valor_facial, r.coin.denominacao)
+    const rank = comemorativas ? (r.coin.html_rank ?? 20) : (r.coin.html_rank ?? 0)
+
+    let linha = linhasMap.get(key)
+    if (!linha) {
+      linha = { key, label, rank, porAno: new Map() }
+      linhasMap.set(key, linha)
+    }
+    const arr = linha.porAno.get(r.issue.ano) ?? []
+    arr.push(r)
+    linha.porAno.set(r.issue.ano, arr)
+
+    const est = estadoDe(r.item)
+    if (est === 'set') { stats.set++; stats.vSet += valorReal(r.coin, r.item) }
+    else if (est === 'caderneta') { stats.cad++; stats.vCad += valorReal(r.coin, r.item) }
+    else { stats.falta++ }
+  }
+
+  const anos = [...anosSet].sort((a, b) => {
+    const na = parseInt(a, 10), nb = parseInt(b, 10)
+    return (isNaN(na) ? 0 : na) - (isNaN(nb) ? 0 : nb) || a.localeCompare(b)
+  })
+  const linhas = comemorativas
+    ? [...linhasMap.values()].sort((a, b) => a.label.localeCompare(b.label))
+    : [...linhasMap.values()].sort((a, b) => a.rank - b.rank)
+  return { anos, linhas, stats, total: rows.length }
+}
+
 export default function PaisDetalhe({
   paisCodigo, paisNome, rows, onVoltar, onSelect, onImprimir,
 }: PaisDetalheProps) {
   const [destaque, setDestaque] = useState<Set<Estado>>(new Set())
+  const [aba, setAba] = useState<AbaTipo>('circulacao')
 
-  const { anos, linhas, stats } = useMemo(() => {
-    const anosSet = new Set<string>()
-    const linhasMap = new Map<string, LinhaMatriz>()
-    const s = { set: 0, cad: 0, falta: 0, vSet: 0, vCad: 0 }
+  const { circulacao, comemorativas } = useMemo(() => ({
+    circulacao: construirAba(rows.filter((r) => !r.coin.comemorativa), false),
+    comemorativas: construirAba(rows.filter((r) => r.coin.comemorativa), true),
+  }), [rows])
 
-    for (const r of rows) {
-      anosSet.add(r.issue.ano)
-      const std = !r.coin.comemorativa
-      const key = std ? `s${r.coin.valor_facial}` : `c${r.coin.denominacao}`
-      const label = std
-        ? denomCurta(r.coin.valor_facial, r.coin.denominacao)
-        : (r.coin.denominacao ?? '—').replace('Moed.', '').replace('Moeda de ', '')
-      const rank = std ? (r.coin.html_rank ?? 0) : 100 + (r.coin.html_rank ?? 20)
-
-      let linha = linhasMap.get(key)
-      if (!linha) {
-        linha = { key, label, rank, porAno: new Map() }
-        linhasMap.set(key, linha)
-      }
-      const arr = linha.porAno.get(r.issue.ano) ?? []
-      arr.push(r)
-      linha.porAno.set(r.issue.ano, arr)
-
-      const est = estadoDe(r.item)
-      if (est === 'set') { s.set++; s.vSet += valorReal(r.coin, r.item) }
-      else if (est === 'caderneta') { s.cad++; s.vCad += valorReal(r.coin, r.item) }
-      else { s.falta++ }
-    }
-
-    const anos = [...anosSet].sort((a, b) => {
-      const na = parseInt(a, 10), nb = parseInt(b, 10)
-      return (isNaN(na) ? 0 : na) - (isNaN(nb) ? 0 : nb) || a.localeCompare(b)
-    })
-    const linhas = [...linhasMap.values()].sort((a, b) => a.rank - b.rank)
-    return { anos, linhas, stats: s }
-  }, [rows])
-
-  const total = rows.length
+  const ativa = aba === 'circulacao' ? circulacao : comemorativas
+  const { anos, linhas, stats } = ativa
   const naColecao = stats.set + stats.cad
-  const pct = total > 0 ? Math.round((naColecao / total) * 100) : 0
+  const pct = ativa.total > 0 ? Math.round((naColecao / ativa.total) * 100) : 0
+  const ehComem = aba === 'comemorativas'
 
   function toggle(e: Estado) {
     setDestaque((cur) => {
@@ -78,6 +97,7 @@ export default function PaisDetalhe({
 
   const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition-shadow cursor-pointer'
   const chipAtivo = (on: boolean) => (on ? ' ring-2 ring-mp-gold ring-offset-1 ring-offset-mp-surface' : ' hover:opacity-80')
+  const tabBase = 'px-4 py-2 text-sm font-medium rounded-lg transition-colors'
 
   return (
     <div>
@@ -102,7 +122,7 @@ export default function PaisDetalhe({
           <Flag code={paisCodigo} size={26} />
           <div className="flex-1 min-w-[160px]">
             <h2 className="font-serif text-lg font-semibold text-mp-ink">{paisNome}</h2>
-            <p className="text-xs text-mp-ink-faint">{total} moedas · {naColecao} na coleção · {pct}%</p>
+            <p className="text-xs text-mp-ink-faint">{ativa.total} moedas · {naColecao} na coleção · {pct}%</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <button
@@ -132,29 +152,52 @@ export default function PaisDetalhe({
           </span>
         </div>
 
+        {/* Tabs Circulação / Comemorativas */}
+        <div className="flex gap-2 px-4 pt-3 print:hidden">
+          <button
+            onClick={() => setAba('circulacao')}
+            className={tabBase + (aba === 'circulacao' ? ' bg-mp-gold text-white' : ' text-mp-ink-soft hover:bg-mp-surface-muted')}
+          >
+            Circulação ({circulacao.total})
+          </button>
+          <button
+            onClick={() => setAba('comemorativas')}
+            className={tabBase + (aba === 'comemorativas' ? ' bg-mp-gold text-white' : ' text-mp-ink-soft hover:bg-mp-surface-muted')}
+          >
+            Comemorativas ({comemorativas.total})
+          </button>
+        </div>
+
         {/* Matriz com scroll horizontal */}
         <div className="overflow-x-auto print:hidden">
-          <div className="min-w-max">
-            <div className="flex items-end pl-12 pt-3">
-              {anos.map((ano) => (
-                <div key={ano} className="w-[72px] flex-none text-center">
-                  <span className="font-serif text-sm font-semibold text-mp-gold-strong">{ano}</span>
-                </div>
-              ))}
+          {linhas.length === 0 ? (
+            <p className="text-sm text-mp-ink-faint px-4 py-8 text-center">
+              Sem {ehComem ? 'comemorativas' : 'moedas de circulação'} para este país.
+            </p>
+          ) : (
+            <div className="min-w-max">
+              <div className={`flex items-end pt-3 ${ehComem ? 'pl-28' : 'pl-12'}`}>
+                {anos.map((ano) => (
+                  <div key={ano} className="w-[72px] flex-none text-center">
+                    <span className="font-serif text-sm font-semibold text-mp-gold-strong">{ano}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="pb-3">
+                {linhas.map((l) => (
+                  <DenominacaoRow
+                    key={l.key}
+                    label={l.label}
+                    comemorativa={ehComem}
+                    anos={anos}
+                    porAno={l.porAno}
+                    onSelect={onSelect}
+                    destaque={destaque}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="pb-3">
-              {linhas.map((l) => (
-                <DenominacaoRow
-                  key={l.key}
-                  label={l.label}
-                  anos={anos}
-                  porAno={l.porAno}
-                  onSelect={onSelect}
-                  destaque={destaque}
-                />
-              ))}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

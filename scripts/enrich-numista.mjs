@@ -37,6 +37,7 @@ if (!SUPA_URL || !SUPA_KEY || !NUMISTA_KEY) {
 
 const args = process.argv.slice(2)
 const PROBE = args.includes('--probe')
+const COMEMORATIVAS = args.includes('--comemorativas')
 const limitArg = args.indexOf('--limit')
 const LIMIT = limitArg >= 0 ? parseInt(args[limitArg + 1], 10) : Infinity
 
@@ -79,6 +80,15 @@ const numFrom = (v) => (typeof v === 'number' ? v : (v && typeof v.numeric_value
 function temaDoTitulo(title) {
   const m = (title || '').match(/\(([^)]+)\)\s*$/)
   return m ? m[1].trim() : null
+}
+
+// É um tipo COMEMORATIVO real? (tem tema e o tema não é variante de circulação:
+// "2nd map", "1st type", pattern, reeding, coin card…). Exclui o 2€ de circulação,
+// que está activo todos os anos e contaminava o match por ano.
+function ehComemType(t) {
+  const tema = temaDoTitulo(t.title)
+  if (!tema) return false
+  return !/\bmap\b|\d\s*(st|nd|rd|th)?\s*type|pattern|reeding|coin\s*card/i.test(tema)
 }
 
 // Descrição + legenda (lettering) de um lado/orla, juntos num texto único.
@@ -338,4 +348,97 @@ async function run() {
   }
 }
 
-await (PROBE ? probe() : run())
+// ─── Modo --comemorativas: match por ano + país (sem depender do nosso tema) ──
+// Cada comemorativa 2€ tem um único ano de emissão. O match ano + face 2€ + país
+// é unívoco na maioria dos casos; onde há duas no mesmo ano usa word-overlap como
+// desempate e regista as ambíguas para revisão.
+async function runComemorativas() {
+  const { data: coins, error } = await supabase
+    .from('catalog_coins')
+    .select('id, pais_codigo, pais_nome, valor_facial, denominacao, comemorativa, numista_id, tema, titulo')
+    .eq('comemorativa', true)
+    .is('numista_id', null)
+  if (error) { console.error('❌', error.message); process.exit(1) }
+  console.log(`🎖️  ${coins.length} comemorativas por enriquecer. Limite: ${LIMIT === Infinity ? 'todas' : LIMIT}`)
+
+  const typesCache = new Map()
+  let feitos = 0, semMatch = 0, semCodigo = 0, ambiguas = 0
+  const log = { semMatch: [], ambigua: [] }
+
+  for (const coin of coins) {
+    if (feitos >= LIMIT) break
+
+    const issuerCode = ISSUER_CODES[coin.pais_codigo]
+    if (!issuerCode) { semCodigo++; continue }
+
+    let types = typesCache.get(issuerCode)
+    if (!types) { types = await typesForIssuer(issuerCode); typesCache.set(issuerCode, types) }
+
+    const { data: ourIssues } = await supabase
+      .from('catalog_issues').select('id, ano_gregoriano').eq('catalog_coin_id', coin.id)
+    if (!ourIssues?.length) { semMatch++; log.semMatch.push(`${coin.pais_nome}: ${coin.titulo} (sem issues)`); continue }
+
+    for (const issue of ourIssues) {
+      const ano = issue.ano_gregoriano
+      if (!ano) continue
+
+      // Só tipos comemorativos reais de 2€ activos nesse ano (exclui circulação).
+      const candidatos = types.filter((t) => {
+        const val = facialFromTitle(t.title)
+        if (!val || Math.abs(val - 2.0) > 0.001) return false
+        if (!ehComemType(t)) return false
+        const minY = t.min_year || 0, maxY = t.max_year || 9999
+        return ano >= minY && ano <= maxY
+      })
+
+      // Alta precisão: só casamos quando há EXACTAMENTE 1 comemorativa nesse ano.
+      // Anos com várias ficam por rever manualmente (o nosso tema não as distingue).
+      if (candidatos.length === 0) {
+        semMatch++
+        log.semMatch.push(`${coin.pais_nome} ${ano}: ${coin.titulo || coin.tema || coin.id}`)
+        continue
+      }
+      if (candidatos.length > 1) {
+        ambiguas++
+        log.ambigua.push(`${coin.pais_nome} ${ano}: ${candidatos.map((t) => temaDoTitulo(t.title)).join(' | ')}`)
+        continue
+      }
+      const escolhido = candidatos[0]
+
+      const detail = await api(`/types/${escolhido.id}?lang=en`, { cacheKey: `type-${escolhido.id}` })
+      const patch = mapCoinDetail(detail, { comemorativa: true })
+      const temaNumista = temaDoTitulo(detail.title) || detail.title
+      const { error: upErr } = await supabase.from('catalog_coins')
+        .update({ ...patch, tema: temaNumista, titulo: detail.title })
+        .eq('id', coin.id)
+      if (upErr) { console.error(`❌ update coin ${coin.id}:`, upErr.message); continue }
+
+      try {
+        const issuesData = await api(`/types/${escolhido.id}/issues?lang=en`, { cacheKey: `issues-${escolhido.id}` })
+        const niIssues = issuesData.issues || issuesData || []
+        const ni = niIssues.find((x) => (x.gregorian_year || x.year) === ano)
+        if (ni) {
+          await supabase.from('catalog_issues')
+            .update({ numista_issue_id: ni.id ?? null, tiragem: numFrom(ni.mintage) ?? null, casa_moeda: ni.mint_letter || ni.mintmark || ni.mint || null })
+            .eq('id', issue.id)
+        }
+      } catch (e) { console.warn(`⚠️  issues ${escolhido.id}: ${e.message}`) }
+
+      feitos++
+      if (feitos % 20 === 0) console.log(`  …${feitos} comemorativas enriquecidas (${reqCount} pedidos)`)
+    }
+  }
+
+  console.log(`\n✅ ${feitos} comemorativas enriquecidas · ${semMatch} sem match · ${ambiguas} ambíguas (saltadas, rever manualmente) · ${semCodigo} sem código · ${reqCount} pedidos usados.`)
+  if (log.ambigua.length) {
+    console.log(`\n⚠️  Ambíguas (mais de 1 comemorativa 2€ no mesmo ano — match manual):`)
+    for (const l of log.ambigua) console.log(`   · ${l}`)
+  }
+  if (log.semMatch.length) {
+    console.log(`\n❌ Sem match (${log.semMatch.length}) — a Numista não tem tipo 2€ activo nesse ano:`)
+    for (const l of log.semMatch.slice(0, 30)) console.log(`   · ${l}`)
+    if (log.semMatch.length > 30) console.log(`   … e mais ${log.semMatch.length - 30}`)
+  }
+}
+
+await (PROBE ? probe() : COMEMORATIVAS ? runComemorativas() : run())

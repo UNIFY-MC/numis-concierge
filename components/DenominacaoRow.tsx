@@ -3,6 +3,7 @@ import CoinCell from './CoinCell'
 
 interface DenominacaoRowProps {
   label: string
+  comemorativa?: boolean
   anos: string[]
   // várias issues podem cair no mesmo ano (comemorativas) → empilhar
   porAno: Map<string, DisplayRow[]>
@@ -10,11 +11,11 @@ interface DenominacaoRowProps {
   destaque?: Set<Estado>
 }
 
-export default function DenominacaoRow({ label, anos, porAno, onSelect, destaque }: DenominacaoRowProps) {
+export default function DenominacaoRow({ label, comemorativa, anos, porAno, onSelect, destaque }: DenominacaoRowProps) {
   return (
     <div className="flex items-stretch border-t border-mp-border/60">
-      <div className="w-12 flex-none flex items-center justify-end pr-2 sticky left-0 bg-mp-surface z-10">
-        <span className="text-xs font-semibold text-mp-ink">{label}</span>
+      <div className={`${comemorativa ? 'w-28' : 'w-12'} flex-none flex items-center justify-end pr-2 sticky left-0 bg-mp-surface z-10`}>
+        <span className="text-xs font-semibold text-mp-ink text-right leading-tight line-clamp-2" title={label}>{label}</span>
       </div>
       {anos.map((ano) => {
         const rows = porAno.get(ano) ?? []
