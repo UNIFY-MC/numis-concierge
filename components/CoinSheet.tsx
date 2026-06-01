@@ -1,46 +1,68 @@
 import { useEffect, useState } from 'react'
 import { flagOf } from '@/lib/flags'
-import { GRAUS, FORMATOS_POSSE } from '@/lib/types'
-import type { DisplayRow, CollectionItem } from '@/lib/types'
+import { estadoDe, denomCurta } from '@/lib/types'
+import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
+import { numistaSearchUrl } from '@/lib/numista'
+import type { DisplayRow, Estado } from '@/lib/types'
+import CoinDisc from './CoinDisc'
+
+export interface CoinSheetSave {
+  estado: Estado
+  quantidade: number
+  grau: string
+  valorBase: number | null
+  foto: string | null
+  nota: string | null
+  aplicarTodos: boolean
+}
 
 interface CoinSheetProps {
   row: DisplayRow
   onClose: () => void
-  onSave: (input: {
-    tenho: boolean
-    quantidade: number
-    formatoPosse: CollectionItem['formato_posse']
-    grau: string | null
-    notaPrivada: string | null
-  }) => Promise<void>
+  onSave: (input: CoinSheetSave) => Promise<void>
 }
+
+const ESTADOS: { v: Estado; label: string; cor: string }[] = [
+  { v: 'set', label: 'Set', cor: 'border-mp-set bg-mp-set-bg text-mp-set' },
+  { v: 'caderneta', label: 'Caderneta', cor: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta' },
+  { v: 'naotem', label: 'Não tem', cor: 'border-mp-falta bg-mp-falta-bg text-mp-falta' },
+]
 
 export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
   const item = row.item
-  const [tenho, setTenho] = useState(!!item && item.quantidade > 0)
+  const facial = row.coin.valor_facial ?? 0
+  const short = denomCurta(row.coin.valor_facial, row.coin.denominacao)
+
+  const [estado, setEstado] = useState<Estado>(estadoDe(item))
   const [quantidade, setQuantidade] = useState(item?.quantidade && item.quantidade > 0 ? item.quantidade : 1)
-  const [formato, setFormato] = useState<CollectionItem['formato_posse']>(item?.formato_posse ?? 'set')
-  const [grau, setGrau] = useState(item?.grau ?? '')
-  const [nota, setNota] = useState(item?.nota_privada ?? '')
+  const [grau, setGrau] = useState(item?.grau ?? GRADE_DEFAULT)
+  const [valorBase, setValorBase] = useState(String(item?.valor_base ?? facial))
+  const [foto, setFoto] = useState(item?.foto1 ?? '')
+  const [nota, setNota] = useState(item?.nota_privada ?? row.issue.html_obs ?? '')
+  const [aplicarTodos, setAplicarTodos] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  const tenho = estado !== 'naotem'
+  const base = parseFloat(valorBase) || 0
+  const estimado = tenho ? Math.max(1, quantidade) * base * gradeMult(grau) : 0
 
   async function guardar() {
     setSaving(true)
     try {
       await onSave({
-        tenho,
+        estado,
         quantidade: tenho ? Math.max(1, quantidade) : 0,
-        formatoPosse: formato,
-        grau: grau || null,
-        notaPrivada: nota || null,
+        grau,
+        valorBase: base || null,
+        foto: foto.trim() || null,
+        nota: nota.trim() || null,
+        aplicarTodos,
       })
       onClose()
     } finally {
@@ -48,112 +70,102 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
     }
   }
 
+  const lbl = 'block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1'
+  const inp = 'w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold'
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-mp-surface w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 max-h-[92vh] overflow-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-mp-surface w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 max-h-[92vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3 mb-5">
-          <span className="text-3xl flex-none">{flagOf(row.coin.pais_codigo)}</span>
+          <CoinDisc short={short} ano={row.issue.ano} estado={estado} size={72} />
           <div className="flex-1">
-            <h2 className="text-lg font-serif font-semibold leading-tight text-mp-ink">{row.coin.pais_nome}</h2>
+            <h2 className="font-serif text-lg font-semibold leading-tight text-mp-ink">
+              {flagOf(row.coin.pais_codigo)} {row.coin.pais_nome}
+            </h2>
             <p className="text-sm text-mp-ink-soft">
               {row.coin.denominacao ?? row.coin.titulo} · <strong>{row.issue.ano}</strong>
             </p>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {[row.coin.tipo_emissao, `Face ${eur(facial)}`, row.issue.etiqueta, short]
+                .filter(Boolean)
+                .map((chip, i) => (
+                  <span key={i} className="text-[10px] bg-mp-surface-muted text-mp-ink-soft rounded-full px-2 py-0.5">{chip}</span>
+                ))}
+            </div>
           </div>
           <button onClick={onClose} className="text-mp-ink-faint hover:text-mp-ink text-xl leading-none">×</button>
         </div>
 
         <div className="mb-4">
-          <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-2">Posse</span>
+          <span className={lbl}>Estado de posse</span>
           <div className="flex gap-2">
-            <button
-              onClick={() => setTenho(true)}
-              className={
-                'flex-1 rounded-lg py-2.5 text-sm font-medium border ' +
-                (tenho ? 'border-mp-set bg-mp-set-bg text-mp-set' : 'border-mp-border text-mp-ink-soft')
-              }
-            >
-              Tenho
-            </button>
-            <button
-              onClick={() => setTenho(false)}
-              className={
-                'flex-1 rounded-lg py-2.5 text-sm font-medium border ' +
-                (!tenho ? 'border-mp-falta bg-mp-falta-bg text-mp-falta' : 'border-mp-border text-mp-ink-soft')
-              }
-            >
-              Não tenho
-            </button>
+            {ESTADOS.map((e) => (
+              <button
+                key={e.v}
+                onClick={() => setEstado(e.v)}
+                className={
+                  'flex-1 rounded-lg py-2.5 text-sm font-medium border ' +
+                  (estado === e.v ? e.cor : 'border-mp-border text-mp-ink-soft')
+                }
+              >
+                {e.label}
+              </button>
+            ))}
           </div>
         </div>
+
+        <label className="block mb-2">
+          <span className={lbl}>Foto da moeda (URL — copia da Numista e cola aqui)</span>
+          <input value={foto} onChange={(e) => setFoto(e.target.value)} placeholder="https://…jpg" className={inp} />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-mp-ink-soft mb-4">
+          <input type="checkbox" checked={aplicarTodos} onChange={(e) => setAplicarTodos(e.target.checked)} />
+          Aplicar foto e valor a todos os anos de {row.coin.pais_nome} · {short}
+        </label>
 
         {tenho && (
           <div className="grid grid-cols-2 gap-3 mb-4">
             <label className="block">
-              <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Quantidade</span>
-              <input
-                type="number"
-                min={1}
-                value={quantidade}
-                onChange={(e) => setQuantidade(parseInt(e.target.value, 10) || 1)}
-                className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Formato</span>
-              <select
-                value={formato ?? ''}
-                onChange={(e) => setFormato((e.target.value || null) as CollectionItem['formato_posse'])}
-                className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
-              >
-                {FORMATOS_POSSE.map((f) => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
+              <span className={lbl}>Estado de conservação</span>
+              <select value={grau} onChange={(e) => setGrau(e.target.value)} className={inp}>
+                {GRADES.map((g) => <option key={g.label} value={g.label}>{g.label}</option>)}
               </select>
             </label>
             <label className="block">
-              <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Conservação</span>
-              <select
-                value={grau}
-                onChange={(e) => setGrau(e.target.value)}
-                className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
-              >
-                <option value="">—</option>
-                {GRAUS.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
+              <span className={lbl}>Valor base (€) — por exemplar</span>
+              <input type="number" step="0.01" min="0" value={valorBase} onChange={(e) => setValorBase(e.target.value)} className={inp} />
+            </label>
+            <label className="block col-span-2">
+              <span className={lbl}>Quantidade — nº de exemplares que tens</span>
+              <input type="number" min={1} value={quantidade} onChange={(e) => setQuantidade(parseInt(e.target.value, 10) || 1)} className={inp} />
             </label>
           </div>
         )}
 
-        <label className="block mb-5">
-          <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Nota</span>
-          <textarea
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            rows={2}
-            className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold resize-y"
-          />
+        <div className="bg-mp-surface-muted border border-mp-border rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+          <span className="text-xs text-mp-ink-soft">Valor real estimado (quantidade × base × conservação)</span>
+          <span className="font-serif text-xl font-semibold text-mp-gold-strong">{eur(estimado)}</span>
+        </div>
+
+        <label className="block mb-4">
+          <span className={lbl}>Observações</span>
+          <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className={inp + ' resize-y'} />
         </label>
 
+        <a
+          href={numistaSearchUrl(row.coin, row.issue)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-center border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted mb-2"
+        >
+          🔍 Abrir na Numista
+        </a>
+
         <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
-          >
-            Cancelar
+          <button onClick={onClose} className="flex-1 border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted">
+            Fechar
           </button>
-          <button
-            onClick={guardar}
-            disabled={saving}
-            className="flex-1 bg-mp-gold text-white rounded-lg py-2.5 text-sm font-medium hover:bg-mp-gold-strong disabled:opacity-50"
-          >
+          <button onClick={guardar} disabled={saving} className="flex-1 bg-mp-gold text-white rounded-lg py-2.5 text-sm font-medium hover:bg-mp-gold-strong disabled:opacity-50">
             {saving ? 'A guardar…' : 'Guardar'}
           </button>
         </div>

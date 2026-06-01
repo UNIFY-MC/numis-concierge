@@ -67,14 +67,42 @@ export interface DisplayRow {
   item: CollectionItem | null
 }
 
-// Graus de conservação (texto livre em collection.grau)
-export const GRAUS = [
-  'FDC', 'Proof', 'BU', 'UNC', 'AU', 'XF', 'VF', 'F', 'VG', 'G',
-] as const
-
 export const FORMATOS_POSSE = [
   'set', 'caderneta', 'carteira', 'circulacao', 'proof', 'slab', 'outro',
 ] as const
+
+// Agregado por país (para a grelha e a vista de valor)
+export interface PaisAgregado {
+  codigo: string
+  nome: string
+  total: number
+  set: number
+  cad: number
+  falta: number
+  valorSet: number
+  valorCad: number
+}
+
+// Estado de uma issue na coleção (derivado de collection)
+export type Estado = 'set' | 'caderneta' | 'naotem'
+
+export function estadoDe(item: CollectionItem | null): Estado {
+  if (!item || item.quantidade <= 0) return 'naotem'
+  return item.formato_posse === 'caderneta' ? 'caderneta' : 'set'
+}
+
+// Denominação curta a partir do valor facial (1c … 2€); fallback para comemorativas
+export function denomCurta(facial: number | null, denom: string | null): string {
+  const map: Record<string, string> = {
+    '0.01': '1c', '0.02': '2c', '0.05': '5c', '0.1': '10c',
+    '0.2': '20c', '0.5': '50c', '1': '1€', '2': '2€',
+  }
+  if (facial != null) {
+    const k = String(facial)
+    if (map[k]) return map[k]
+  }
+  return (denom ?? '').replace('Moed.', '').replace('Moeda de ', '').slice(0, 6) || '—'
+}
 
 // Exemplar na colecção pessoal (numis.collection)
 export interface CollectionItem {
@@ -90,6 +118,7 @@ export interface CollectionItem {
   numero_certificacao: string | null
   para_troca: boolean
   nota_publica: string | null
+  valor_base: number | null
   preco_compra: number | null
   moeda_compra: string | null
   data_compra: string | null

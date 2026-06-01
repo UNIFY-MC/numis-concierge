@@ -73,6 +73,8 @@ export interface CollectionUpsert {
   quantidade: number
   formatoPosse?: CollectionItem['formato_posse']
   grau?: string | null
+  valorBase?: number | null
+  foto?: string | null
   notaPrivada?: string | null
 }
 
@@ -93,6 +95,8 @@ export async function upsertCollectionItem(input: CollectionUpsert): Promise<Col
     quantidade: input.quantidade,
     formato_posse: input.formatoPosse ?? null,
     grau: input.grau ?? null,
+    valor_base: input.valorBase ?? null,
+    foto1: input.foto ?? null,
     nota_privada: input.notaPrivada ?? null,
   }
 
@@ -114,4 +118,18 @@ export async function upsertCollectionItem(input: CollectionUpsert): Promise<Col
     .single()
   if (error) throw error
   return data
+}
+
+// "Aplicar foto e valor a todos os anos": actualiza valor_base + foto1 de todos os
+// exemplares já existentes desse catalog_coin (não cria novos — só propaga aos que tens).
+export async function applyToAllYears(
+  catalogCoinId: string,
+  valorBase: number | null,
+  foto: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from('collection')
+    .update({ valor_base: valorBase, foto1: foto })
+    .eq('catalog_coin_id', catalogCoinId)
+  if (error) throw error
 }
