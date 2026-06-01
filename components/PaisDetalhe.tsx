@@ -24,7 +24,7 @@ interface LinhaMatriz {
 export default function PaisDetalhe({
   paisCodigo, paisNome, rows, onVoltar, onSelect, onImprimir,
 }: PaisDetalheProps) {
-  const [destaque, setDestaque] = useState<Estado | null>(null)
+  const [destaque, setDestaque] = useState<Set<Estado>>(new Set())
 
   const { anos, linhas, stats } = useMemo(() => {
     const anosSet = new Set<string>()
@@ -68,7 +68,12 @@ export default function PaisDetalhe({
   const pct = total > 0 ? Math.round((naColecao / total) * 100) : 0
 
   function toggle(e: Estado) {
-    setDestaque((cur) => (cur === e ? null : e))
+    setDestaque((cur) => {
+      const next = new Set(cur)
+      if (next.has(e)) next.delete(e)
+      else next.add(e)
+      return next
+    })
   }
 
   const chipBase = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition-shadow cursor-pointer'
@@ -103,21 +108,21 @@ export default function PaisDetalhe({
             <button
               type="button"
               onClick={() => toggle('set')}
-              className={chipBase + ' bg-mp-set-bg text-mp-set' + chipAtivo(destaque === 'set')}
+              className={chipBase + ' bg-mp-set-bg text-mp-set' + chipAtivo(destaque.has('set'))}
             >
               <span className="w-2 h-2 rounded-full bg-mp-set" /> set {stats.set} · {eur(stats.vSet)}
             </button>
             <button
               type="button"
               onClick={() => toggle('caderneta')}
-              className={chipBase + ' bg-mp-caderneta-bg text-mp-caderneta' + chipAtivo(destaque === 'caderneta')}
+              className={chipBase + ' bg-mp-caderneta-bg text-mp-caderneta' + chipAtivo(destaque.has('caderneta'))}
             >
               <span className="w-2 h-2 rounded-full bg-mp-caderneta" /> caderneta {stats.cad} · {eur(stats.vCad)}
             </button>
             <button
               type="button"
               onClick={() => toggle('naotem')}
-              className={chipBase + ' bg-mp-falta-bg text-mp-falta' + chipAtivo(destaque === 'naotem')}
+              className={chipBase + ' bg-mp-falta-bg text-mp-falta' + chipAtivo(destaque.has('naotem'))}
             >
               <span className="w-2 h-2 rounded-full bg-mp-falta" /> não tem {stats.falta}
             </button>

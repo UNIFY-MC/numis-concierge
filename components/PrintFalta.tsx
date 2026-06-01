@@ -15,9 +15,14 @@ function tipoLabel(coin: DisplayRow['coin']): string {
 
 function ordenar(rows: DisplayRow[]): DisplayRow[] {
   return [...rows].sort((a, b) => {
-    const ra = a.coin.html_rank ?? 0
-    const rb = b.coin.html_rank ?? 0
-    return ra - rb || a.issue.ano.localeCompare(b.issue.ano)
+    // 1.º por ano (gregoriano), 2.º por valor facial da moeda
+    const ya = a.issue.ano_gregoriano ?? (parseInt(a.issue.ano, 10) || 0)
+    const yb = b.issue.ano_gregoriano ?? (parseInt(b.issue.ano, 10) || 0)
+    if (ya !== yb) return ya - yb
+    const va = a.coin.valor_facial ?? 0
+    const vb = b.coin.valor_facial ?? 0
+    if (va !== vb) return va - vb
+    return a.issue.ano.localeCompare(b.issue.ano)
   })
 }
 

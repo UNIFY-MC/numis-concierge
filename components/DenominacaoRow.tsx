@@ -7,7 +7,7 @@ interface DenominacaoRowProps {
   // várias issues podem cair no mesmo ano (comemorativas) → empilhar
   porAno: Map<string, DisplayRow[]>
   onSelect: (row: DisplayRow) => void
-  destaque?: Estado | null
+  destaque?: Set<Estado>
 }
 
 export default function DenominacaoRow({ label, anos, porAno, onSelect, destaque }: DenominacaoRowProps) {

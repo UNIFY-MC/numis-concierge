@@ -7,12 +7,12 @@ import CoinDisc from './CoinDisc'
 interface CoinCellProps {
   row: DisplayRow
   onClick: () => void
-  destaque?: Estado | null
+  destaque?: Set<Estado>
 }
 
 export default function CoinCell({ row, onClick, destaque }: CoinCellProps) {
   const estado = estadoDe(row.item)
-  const esbatido = destaque != null && estado !== destaque
+  const esbatido = !!destaque && destaque.size > 0 && !destaque.has(estado)
   const short = denomCurta(row.coin.valor_facial, row.coin.denominacao)
   const qtd = row.item?.quantidade ?? 0
   const valor = valorReal(row.coin, row.item)
