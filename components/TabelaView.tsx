@@ -9,14 +9,10 @@ interface TabelaViewProps {
   onSelect: (row: DisplayRow) => void
   onExportar: () => void
   onQuantidade: (row: DisplayRow, qtd: number) => void
+  onEstado: (row: DisplayRow, formato: 'set' | 'caderneta' | null) => void
 }
 
 type Col = 'pais' | 'tipo' | 'moeda' | 'face' | 'ano' | 'casa' | 'estado' | 'qtd' | 'valor'
-
-const ESTADO_LABEL = { set: 'Set', caderneta: 'Caderneta', naotem: 'Não tem' } as const
-const ESTADO_CLS = {
-  set: 'text-mp-set', caderneta: 'text-mp-caderneta', naotem: 'text-mp-ink-faint',
-} as const
 
 function valOf(r: DisplayRow, col: Col): string | number {
   switch (col) {
@@ -25,14 +21,42 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'moeda': return r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || '') : (r.coin.denominacao ?? '')
     case 'face': return r.coin.valor_facial ?? 0
     case 'ano': return r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10) ?? 0
-    case 'casa': return r.issue.casa_moeda ?? ''
+    case 'casa': return r.item?.casa_moeda || r.issue.casa_moeda || ''
     case 'estado': return estadoDe(r.item)
     case 'qtd': return r.item?.quantidade ?? 0
     case 'valor': return estadoDe(r.item) === 'naotem' ? 0 : valorReal(r.coin, r.item)
   }
 }
 
-export default function TabelaView({ rows, onSelect, onExportar, onQuantidade }: TabelaViewProps) {
+// Botões S/C — activo = fundo sólido; inactivo = ghost. Clicar no activo limpa (→ não tem).
+function EstadoSelector({ est, onChange }: {
+  est: 'set' | 'caderneta' | 'naotem'
+  onChange: (f: 'set' | 'caderneta' | null) => void
+}) {
+  const btn = (label: string, val: 'set' | 'caderneta', activeCls: string) => {
+    const ativo = est === val
+    return (
+      <button
+        onClick={() => onChange(ativo ? null : val)}
+        title={ativo ? 'Retirar (→ não tem)' : val === 'set' ? 'Marcar como Set' : 'Marcar como Caderneta'}
+        className={
+          'px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none border transition-colors ' +
+          (ativo ? activeCls : 'border-mp-border text-mp-ink-faint hover:border-mp-ink-soft hover:text-mp-ink-soft')
+        }
+      >
+        {label}
+      </button>
+    )
+  }
+  return (
+    <div className="flex gap-1">
+      {btn('S', 'set', 'border-mp-set bg-mp-set-bg text-mp-set')}
+      {btn('C', 'caderneta', 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta')}
+    </div>
+  )
+}
+
+export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, onEstado }: TabelaViewProps) {
   const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: 'pais', dir: 1 })
 
   const ordenadas = useMemo(() => {
@@ -102,8 +126,10 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade }:
                   <td className="px-3 py-1.5 max-w-[260px] truncate" title={String(valOf(r, 'moeda'))}>{valOf(r, 'moeda') || '—'}</td>
                   <td className="px-3 py-1.5 text-right">{r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}</td>
                   <td className="px-3 py-1.5">{r.issue.ano}</td>
-                  <td className="px-3 py-1.5">{r.issue.casa_moeda ?? '—'}</td>
-                  <td className={'px-3 py-1.5 font-medium ' + ESTADO_CLS[est]}>{ESTADO_LABEL[est]}</td>
+                  <td className="px-3 py-1.5">{r.item?.casa_moeda || r.issue.casa_moeda || '—'}</td>
+                  <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                    <EstadoSelector est={est} onChange={(f) => onEstado(r, f)} />
+                  </td>
                   <td className="px-3 py-1.5">
                     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <button

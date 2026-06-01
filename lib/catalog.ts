@@ -72,6 +72,7 @@ export interface CollectionUpsert {
   catalogIssueId: string
   quantidade: number
   formatoPosse?: CollectionItem['formato_posse']
+  casaMoeda?: string | null
   grau?: string | null
   valorBase?: number | null
   foto?: string | null
@@ -94,6 +95,7 @@ export async function upsertCollectionItem(input: CollectionUpsert): Promise<Col
     catalog_issue_id: input.catalogIssueId,
     quantidade: input.quantidade,
     formato_posse: input.formatoPosse ?? null,
+    casa_moeda: input.casaMoeda ?? null,
     grau: input.grau ?? null,
     valor_base: input.valorBase ?? null,
     foto1: input.foto ?? null,

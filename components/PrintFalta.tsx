@@ -36,7 +36,7 @@ export default function PrintFalta({ grupos }: { grupos: GrupoFalta[] }) {
         return (
           <section key={g.codigo} className={i > 0 ? 'break-before-page pt-8' : ''}>
             <div className="flex items-center gap-3 mb-1">
-              <Flag code={g.codigo} size={30} />
+              <Flag code={g.codigo.split('-')[0]} size={30} />
               <h1 className="font-serif text-2xl font-semibold leading-tight">
                 Moedas em falta — {g.nome}
               </h1>

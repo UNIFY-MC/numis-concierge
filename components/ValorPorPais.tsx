@@ -28,7 +28,7 @@ export default function ValorPorPais({ paises, totalGeral }: ValorPorPaisProps) 
           const cadPct = max > 0 ? (p.valorCad / max) * 100 : 0
           return (
             <div key={p.codigo} className="flex items-center gap-2 text-xs">
-              <span className="w-6 flex-none text-center"><Flag code={p.codigo} size={13} /></span>
+              <span className="w-6 flex-none text-center"><Flag code={p.flagCodigo} size={13} /></span>
               <span className="w-20 flex-none truncate text-mp-ink-soft">{p.nome}</span>
               <svg viewBox="0 0 100 8" preserveAspectRatio="none" className="flex-1 h-2" aria-hidden>
                 <rect x="0" y="0" width="100" height="8" rx="4" fill="var(--mp-coin-empty)" />

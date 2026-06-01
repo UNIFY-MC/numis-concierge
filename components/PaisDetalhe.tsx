@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { estadoDe, denomCurta } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
+import { casaAlemanha } from '@/lib/alemanha'
 import type { DisplayRow, Estado } from '@/lib/types'
 import DenominacaoRow from './DenominacaoRow'
 import CoinList from './CoinList'
@@ -102,6 +103,7 @@ export default function PaisDetalhe({
   const naColecao = stats.set + stats.cad
   const pct = totalTab > 0 ? Math.round((naColecao / totalTab) * 100) : 0
   const ehComem = aba === 'comemorativas'
+  const casa = casaAlemanha(paisCodigo)
 
   function toggle(e: Estado) {
     setFiltro((cur) => {
@@ -136,9 +138,12 @@ export default function PaisDetalhe({
 
       <div className="border border-mp-border rounded-2xl overflow-hidden bg-mp-surface">
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-mp-border print:hidden">
-          <Flag code={paisCodigo} size={26} />
+          <Flag code={paisCodigo.split('-')[0]} size={26} />
           <div className="flex-1 min-w-[160px]">
             <h2 className="font-serif text-lg font-semibold text-mp-ink">{paisNome}</h2>
+            {casa && (
+              <p className="text-[11px] text-mp-ink-soft leading-tight">{casa.casa} · {casa.cidade}</p>
+            )}
             <p className="text-xs text-mp-ink-faint">{totalTab} moedas · {naColecao} na coleção · {pct}%</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">

@@ -75,8 +75,9 @@ export const FORMATOS_POSSE = [
 
 // Agregado por país (para a grelha e a vista de valor)
 export interface PaisAgregado {
-  codigo: string
+  codigo: string   // pode ser virtual, ex. 'de-A'
   nome: string
+  flagCodigo: string  // código ISO real para a bandeira, ex. 'de'
   total: number
   set: number
   cad: number
@@ -114,6 +115,7 @@ export interface CollectionItem {
   user_id: string | null
   quantidade: number
   formato_posse: 'set' | 'caderneta' | 'carteira' | 'circulacao' | 'proof' | 'slab' | 'outro' | null
+  casa_moeda: string | null
   grau: string | null
   grau_sistema: 'Sheldon' | 'Europeu' | 'Simplificado' | null
   certificador: string | null

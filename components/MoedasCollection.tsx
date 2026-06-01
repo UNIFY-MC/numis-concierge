@@ -19,6 +19,18 @@ import TabelaView from './TabelaView'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
 import PrintFalta, { type GrupoFalta } from './PrintFalta'
 
+const DE_MINTS = ['A', 'D', 'F', 'G', 'J'] as const
+
+// Alemanha desdobra-se por casa da moeda (de-A … de-J) quando a issue a tem.
+function virtualCodigo(r: DisplayRow): string {
+  if (r.coin.pais_codigo === 'de') {
+    // Casa registada pelo coleccionador (collection) tem prioridade sobre a do catálogo.
+    const casa = r.item?.casa_moeda || r.issue.casa_moeda
+    if (casa && (DE_MINTS as readonly string[]).includes(casa)) return `de-${casa}`
+  }
+  return r.coin.pais_codigo
+}
+
 export default function MoedasCollection() {
   const [rows, setRows] = useState<DisplayRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,10 +97,14 @@ export default function MoedasCollection() {
   const agregados = useMemo(() => {
     const m = new Map<string, PaisAgregado>()
     for (const r of rows) {
-      let a = m.get(r.coin.pais_codigo)
+      const vcode = virtualCodigo(r)
+      let a = m.get(vcode)
       if (!a) {
-        a = { codigo: r.coin.pais_codigo, nome: r.coin.pais_nome, total: 0, set: 0, cad: 0, falta: 0, valorSet: 0, valorCad: 0 }
-        m.set(r.coin.pais_codigo, a)
+        const nome = vcode !== r.coin.pais_codigo
+          ? `${r.coin.pais_nome} ${vcode.split('-')[1]}`
+          : r.coin.pais_nome
+        a = { codigo: vcode, nome, flagCodigo: r.coin.pais_codigo, total: 0, set: 0, cad: 0, falta: 0, valorSet: 0, valorCad: 0 }
+        m.set(vcode, a)
       }
       a.total++
       const e = estadoDe(r.item)
@@ -96,12 +112,17 @@ export default function MoedasCollection() {
       else if (e === 'caderneta') { a.cad++; a.valorCad += valorReal(r.coin, r.item) }
       else a.falta++
     }
+    // Se o álbum por casas já existe, o cartão residual da Alemanha são as moedas
+    // ainda por atribuir a uma casa.
+    const temCasas = [...m.keys()].some((k) => k.startsWith('de-'))
+    const residualDe = m.get('de')
+    if (temCasas && residualDe) residualDe.nome = 'Alemanha · por atribuir'
     return m
   }, [rows])
 
   // Países a mostrar na grelha (os que têm rows visíveis), ordenados
   const paisesGrelha = useMemo(() => {
-    const presentes = new Set(visibleRows.map((r) => r.coin.pais_codigo))
+    const presentes = new Set(visibleRows.map((r) => virtualCodigo(r)))
     const lista = [...agregados.values()].filter((a) => presentes.has(a.codigo))
     const pctOf = (a: PaisAgregado) => (a.total > 0 ? (a.set + a.cad) / a.total : 0)
     if (sort === 'pct') lista.sort((a, b) => pctOf(b) - pctOf(a) || a.nome.localeCompare(b.nome, 'pt'))
@@ -111,7 +132,7 @@ export default function MoedasCollection() {
   }, [agregados, visibleRows, sort])
 
   const rowsDoPais = useMemo(
-    () => (paisAberto ? visibleRows.filter((r) => r.coin.pais_codigo === paisAberto) : []),
+    () => (paisAberto ? visibleRows.filter((r) => virtualCodigo(r) === paisAberto) : []),
     [visibleRows, paisAberto],
   )
 
@@ -120,15 +141,17 @@ export default function MoedasCollection() {
     const m = new Map<string, GrupoFalta>()
     for (const r of rows) {
       if (estadoDe(r.item) !== 'naotem') continue
-      let g = m.get(r.coin.pais_codigo)
+      const vcode = virtualCodigo(r)
+      let g = m.get(vcode)
       if (!g) {
-        g = { codigo: r.coin.pais_codigo, nome: r.coin.pais_nome, faltam: [] }
-        m.set(r.coin.pais_codigo, g)
+        const nome = agregados.get(vcode)?.nome ?? r.coin.pais_nome
+        g = { codigo: vcode, nome, faltam: [] }
+        m.set(vcode, g)
       }
       g.faltam.push(r)
     }
     return [...m.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
-  }, [rows])
+  }, [rows, agregados])
 
   const gruposParaImprimir = useMemo<GrupoFalta[]>(() => {
     if (!imprimir) return []
@@ -155,6 +178,7 @@ export default function MoedasCollection() {
       catalogIssueId: selecionada.issue.id,
       quantidade: input.quantidade,
       formatoPosse: formato,
+      casaMoeda: input.casaMoeda,
       grau: input.grau,
       valorBase: input.valorBase,
       foto: input.foto,
@@ -183,10 +207,29 @@ export default function MoedasCollection() {
       catalogIssueId: row.issue.id,
       quantidade: qtd,
       formatoPosse: formato,
+      casaMoeda: atual?.casa_moeda ?? null,
       grau: atual?.grau ?? null,
       valorBase: atual?.valor_base ?? null,
       foto: atual?.foto1 ?? null,
       notaPrivada: atual?.nota_privada ?? null,
+    })
+    setRows((prev) => prev.map((r) => (r.issue.id === row.issue.id ? { ...r, item: saved } : r)))
+  }
+
+  // Atualização rápida de estado (S/C/nulo) sem abrir o CoinSheet.
+  // null → não tem (qtd=0). Caso contrário preserva qtd (mínimo 1).
+  async function alterarEstado(row: DisplayRow, formato: 'set' | 'caderneta' | null) {
+    const qtd = formato === null ? 0 : Math.max(1, row.item?.quantidade ?? 1)
+    const saved = await upsertCollectionItem({
+      catalogCoinId: row.coin.id,
+      catalogIssueId: row.issue.id,
+      quantidade: qtd,
+      formatoPosse: formato,
+      casaMoeda: row.item?.casa_moeda ?? null,
+      grau: row.item?.grau ?? null,
+      valorBase: row.item?.valor_base ?? null,
+      foto: row.item?.foto1 ?? null,
+      notaPrivada: row.item?.nota_privada ?? null,
     })
     setRows((prev) => prev.map((r) => (r.issue.id === row.issue.id ? { ...r, item: saved } : r)))
   }
@@ -239,7 +282,7 @@ export default function MoedasCollection() {
           r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || r.coin.denominacao) : (r.coin.denominacao ?? ''),
           r.coin.valor_facial ?? '',
           r.issue.ano,
-          r.issue.casa_moeda ?? '',
+          r.item?.casa_moeda || r.issue.casa_moeda || '',
           r.coin.km_ref ?? '',
           r.coin.schon_ref ?? '',
           r.coin.peso_g ?? '',
@@ -346,6 +389,7 @@ export default function MoedasCollection() {
           onSelect={setSelecionada}
           onExportar={() => exportarCsv()}
           onQuantidade={alterarQuantidade}
+          onEstado={alterarEstado}
         />
       ) : paisAberto ? (
         <PaisDetalhe

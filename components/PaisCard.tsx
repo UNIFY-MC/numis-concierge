@@ -1,4 +1,5 @@
 import { eur } from '@/lib/valor'
+import { casaAlemanha } from '@/lib/alemanha'
 import type { PaisAgregado } from '@/lib/types'
 import Flag from './Flag'
 
@@ -8,6 +9,7 @@ interface PaisCardProps {
 }
 
 export default function PaisCard({ p, onClick }: PaisCardProps) {
+  const casa = casaAlemanha(p.codigo)
   const naColecao = p.set + p.cad
   const pct = p.total > 0 ? Math.round((naColecao / p.total) * 100) : 0
   const setPct = p.total > 0 ? (p.set / p.total) * 100 : 0
@@ -19,9 +21,14 @@ export default function PaisCard({ p, onClick }: PaisCardProps) {
       className="text-left bg-mp-surface border border-mp-border rounded-2xl p-4 hover:border-mp-gold transition-colors"
     >
       <div className="flex items-start gap-2.5">
-        <span className="flex-none"><Flag code={p.codigo} size={20} /></span>
+        <span className="flex-none"><Flag code={p.flagCodigo} size={20} /></span>
         <div className="flex-1 min-w-0">
           <h3 className="font-serif font-semibold text-mp-ink leading-tight truncate">{p.nome}</h3>
+          {casa && (
+            <p className="text-[10px] text-mp-ink-faint leading-tight truncate" title={`${casa.casa} · ${casa.cidade}`}>
+              {casa.casa} · {casa.cidade}
+            </p>
+          )}
           <p className="text-[11px] text-mp-ink-faint">{p.total} moedas · {naColecao} na coleção</p>
         </div>
         <span className="font-serif font-semibold text-mp-gold-strong">{pct}%</span>

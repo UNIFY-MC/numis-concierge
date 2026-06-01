@@ -9,12 +9,17 @@ import Flag from './Flag'
 export interface CoinSheetSave {
   estado: Estado
   quantidade: number
+  casaMoeda: string | null
   grau: string
   valorBase: number | null
   foto: string | null
   nota: string | null
   aplicarTodos: boolean
 }
+
+// Casas da moeda alemãs. Só relevante para a Alemanha; permite agrupar a
+// coleção por casa nos cartões de-A … de-J.
+const CASAS_DE = ['A', 'D', 'F', 'G', 'J'] as const
 
 interface CoinSheetProps {
   row: DisplayRow
@@ -37,7 +42,9 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
   const [quantidade, setQuantidade] = useState(item?.quantidade && item.quantidade > 0 ? item.quantidade : 1)
   const [grau, setGrau] = useState(item?.grau ?? GRADE_DEFAULT)
   const [valorBase, setValorBase] = useState(String(item?.valor_base ?? facial))
+  const [casaMoeda, setCasaMoeda] = useState(item?.casa_moeda ?? row.issue.casa_moeda ?? '')
   const [foto, setFoto] = useState(item?.foto1 ?? '')
+  const mostraCasa = row.coin.pais_codigo === 'de'
   const [nota, setNota] = useState(item?.nota_privada ?? row.issue.html_obs ?? '')
   const [aplicarTodos, setAplicarTodos] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -80,6 +87,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
       await onSave({
         estado,
         quantidade: tenho ? Math.max(1, quantidade) : 0,
+        casaMoeda: casaMoeda || null,
         grau,
         valorBase: base || null,
         foto: foto.trim() || null,
@@ -174,6 +182,26 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
             ))}
           </div>
         </div>
+
+        {mostraCasa && tenho && (
+          <div className="mb-4">
+            <span className={lbl}>Casa da moeda (Alemanha) — agrupa nos cartões A/D/F/G/J</span>
+            <div className="flex gap-2 flex-wrap">
+              {CASAS_DE.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCasaMoeda((cur) => (cur === c ? '' : c))}
+                  className={
+                    'w-10 rounded-lg py-2 text-sm font-semibold border ' +
+                    (casaMoeda === c ? 'border-mp-gold bg-mp-falta-bg text-mp-gold-strong' : 'border-mp-border text-mp-ink-soft hover:border-mp-ink-soft')
+                  }
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <label className="block mb-2">
           <span className={lbl}>Foto da moeda (URL — copia da Numista e cola aqui)</span>
