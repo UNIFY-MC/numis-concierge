@@ -1,6 +1,6 @@
-import { flagOf } from '@/lib/flags'
 import { eur } from '@/lib/valor'
 import type { PaisAgregado } from '@/lib/types'
+import Flag from './Flag'
 
 interface PaisCardProps {
   p: PaisAgregado
@@ -19,7 +19,7 @@ export default function PaisCard({ p, onClick }: PaisCardProps) {
       className="text-left bg-mp-surface border border-mp-border rounded-2xl p-4 hover:border-mp-gold transition-colors"
     >
       <div className="flex items-start gap-2.5">
-        <span className="text-xl flex-none">{flagOf(p.codigo)}</span>
+        <span className="flex-none"><Flag code={p.codigo} size={20} /></span>
         <div className="flex-1 min-w-0">
           <h3 className="font-serif font-semibold text-mp-ink leading-tight truncate">{p.nome}</h3>
           <p className="text-[11px] text-mp-ink-faint">{p.total} moedas · {naColecao} na coleção</p>

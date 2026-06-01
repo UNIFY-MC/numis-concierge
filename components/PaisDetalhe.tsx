@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import { flagOf } from '@/lib/flags'
 import { estadoDe, denomCurta } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
 import type { DisplayRow } from '@/lib/types'
 import DenominacaoRow from './DenominacaoRow'
+import Flag from './Flag'
 
 interface PaisDetalheProps {
   paisCodigo: string
@@ -85,7 +85,7 @@ export default function PaisDetalhe({
 
       <div className="border border-mp-border rounded-2xl overflow-hidden bg-mp-surface">
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-mp-border">
-          <span className="text-2xl">{flagOf(paisCodigo)}</span>
+          <Flag code={paisCodigo} size={26} />
           <div className="flex-1 min-w-[160px]">
             <h2 className="font-serif text-lg font-semibold text-mp-ink">{paisNome}</h2>
             <p className="text-xs text-mp-ink-faint">{total} moedas · {naColecao} na coleção · {pct}%</p>

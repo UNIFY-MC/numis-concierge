@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { flagOf } from '@/lib/flags'
 import { estadoDe, denomCurta } from '@/lib/types'
 import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
 import { numistaSearchUrl } from '@/lib/numista'
 import type { DisplayRow, Estado } from '@/lib/types'
 import CoinDisc from './CoinDisc'
+import Flag from './Flag'
 
 export interface CoinSheetSave {
   estado: Estado
@@ -79,8 +79,8 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         <div className="flex items-start gap-3 mb-5">
           <CoinDisc short={short} ano={row.issue.ano} estado={estado} size={72} />
           <div className="flex-1">
-            <h2 className="font-serif text-lg font-semibold leading-tight text-mp-ink">
-              {flagOf(row.coin.pais_codigo)} {row.coin.pais_nome}
+            <h2 className="font-serif text-lg font-semibold leading-tight text-mp-ink flex items-center gap-2">
+              <Flag code={row.coin.pais_codigo} size={20} /> {row.coin.pais_nome}
             </h2>
             <p className="text-sm text-mp-ink-soft">
               {row.coin.denominacao ?? row.coin.titulo} · <strong>{row.issue.ano}</strong>
