@@ -16,6 +16,7 @@ import EmissorGrid from './EmissorGrid'
 import PaisDetalhe from './PaisDetalhe'
 import ValorPorPais from './ValorPorPais'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
+import PrintFalta, { type GrupoFalta } from './PrintFalta'
 
 export default function MoedasCollection() {
   const [rows, setRows] = useState<DisplayRow[]>([])
@@ -28,6 +29,7 @@ export default function MoedasCollection() {
   const [pesquisa, setPesquisa] = useState('')
   const [paisAberto, setPaisAberto] = useState<string | null>(null)
   const [selecionada, setSelecionada] = useState<DisplayRow | null>(null)
+  const [imprimir, setImprimir] = useState<{ tipo: 'geral' } | { tipo: 'pais'; codigo: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -111,6 +113,38 @@ export default function MoedasCollection() {
     () => (paisAberto ? visibleRows.filter((r) => r.coin.pais_codigo === paisAberto) : []),
     [visibleRows, paisAberto],
   )
+
+  // Grupos de em-falta para impressão (sobre o catálogo completo, ignorando o filtro)
+  const gruposFalta = useMemo<GrupoFalta[]>(() => {
+    const m = new Map<string, GrupoFalta>()
+    for (const r of rows) {
+      if (estadoDe(r.item) !== 'naotem') continue
+      let g = m.get(r.coin.pais_codigo)
+      if (!g) {
+        g = { codigo: r.coin.pais_codigo, nome: r.coin.pais_nome, faltam: [] }
+        m.set(r.coin.pais_codigo, g)
+      }
+      g.faltam.push(r)
+    }
+    return [...m.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
+  }, [rows])
+
+  const gruposParaImprimir = useMemo<GrupoFalta[]>(() => {
+    if (!imprimir) return []
+    if (imprimir.tipo === 'geral') return gruposFalta
+    return gruposFalta.filter((g) => g.codigo === imprimir.codigo)
+  }, [imprimir, gruposFalta])
+
+  useEffect(() => {
+    if (!imprimir) return
+    const onAfter = () => setImprimir(null)
+    window.addEventListener('afterprint', onAfter)
+    const id = window.requestAnimationFrame(() => window.print())
+    return () => {
+      window.removeEventListener('afterprint', onAfter)
+      window.cancelAnimationFrame(id)
+    }
+  }, [imprimir])
 
   async function guardar(input: CoinSheetSave) {
     if (!selecionada) return
@@ -197,6 +231,7 @@ export default function MoedasCollection() {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
+      <div className="print:hidden">
       <header className="flex items-center gap-3 mb-6">
         <span className="w-11 h-11 rounded-full grid place-items-center bg-mp-gold text-white text-xl flex-none">⊚</span>
         <div>
@@ -240,10 +275,20 @@ export default function MoedasCollection() {
           rows={rowsDoPais}
           onVoltar={() => setPaisAberto(null)}
           onSelect={setSelecionada}
+          onImprimir={() => setImprimir({ tipo: 'pais', codigo: paisAberto })}
         />
       ) : (
         <>
-          <SortBar sort={sort} onChange={setSort} />
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <SortBar sort={sort} onChange={setSort} />
+            <button
+              onClick={() => setImprimir({ tipo: 'geral' })}
+              className="border border-mp-gold rounded-lg px-3 py-2 text-sm font-semibold text-mp-gold-strong hover:bg-mp-falta-bg disabled:opacity-50"
+              disabled={stats.naotem === 0}
+            >
+              🖨 Imprimir lista de em falta — todos os países ({stats.naotem})
+            </button>
+          </div>
           <EmissorGrid paises={paisesGrelha} onSelect={setPaisAberto} />
         </>
       )}
@@ -251,6 +296,9 @@ export default function MoedasCollection() {
       {selecionada && (
         <CoinSheet row={selecionada} onClose={() => setSelecionada(null)} onSave={guardar} />
       )}
+      </div>
+
+      {imprimir && <PrintFalta grupos={gruposParaImprimir} />}
     </div>
   )
 }

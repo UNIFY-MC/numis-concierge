@@ -1,16 +1,18 @@
 import { estadoDe, denomCurta } from '@/lib/types'
 import { valorReal, eur } from '@/lib/valor'
 import { numistaSearchUrl } from '@/lib/numista'
-import type { DisplayRow } from '@/lib/types'
+import type { DisplayRow, Estado } from '@/lib/types'
 import CoinDisc from './CoinDisc'
 
 interface CoinCellProps {
   row: DisplayRow
   onClick: () => void
+  destaque?: Estado | null
 }
 
-export default function CoinCell({ row, onClick }: CoinCellProps) {
+export default function CoinCell({ row, onClick, destaque }: CoinCellProps) {
   const estado = estadoDe(row.item)
+  const esbatido = destaque != null && estado !== destaque
   const short = denomCurta(row.coin.valor_facial, row.coin.denominacao)
   const qtd = row.item?.quantidade ?? 0
   const valor = valorReal(row.coin, row.item)
@@ -21,7 +23,7 @@ export default function CoinCell({ row, onClick }: CoinCellProps) {
         : 'bg-mp-surface-muted text-mp-ink-soft'
 
   return (
-    <div className="flex flex-col items-center w-16 flex-none">
+    <div className={'flex flex-col items-center w-16 flex-none transition-opacity ' + (esbatido ? 'opacity-20' : 'opacity-100')}>
       <button onClick={onClick} className="relative group" aria-label={`${short} ${row.issue.ano}`}>
         <CoinDisc short={short} ano={row.issue.ano} estado={estado} size={54} />
         <span
