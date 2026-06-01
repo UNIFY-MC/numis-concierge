@@ -31,6 +31,15 @@ Campos sem dados no HTML (metal das comemorativas, grau, preços, fotos, km_ref,
 Ver `.env.local.example` — Supabase + Anthropic + Resend.
 Seed de dados requer `SUPABASE_SERVICE_ROLE_KEY` (só local, nunca versionada).
 
+## Dívida técnica
+- **RLS da `collection` aberto a `anon`** (migration `006_collection_anon_temp.sql`):
+  enquanto não há auth, o role `anon` tem SELECT/INSERT/UPDATE na `collection`
+  (NÃO DELETE — "não tenho" é `quantidade=0`, nunca apaga linha). Isto torna a
+  colecção acessível a quem tiver o URL + anon key.
+  **O Passo C (auth) TEM de fechar isto**: aplicar `007_revert_collection_anon_PASSO_C.sql`,
+  preencher `collection.user_id` com o uid do dono, e filtrar/escrever por
+  `user_id = auth.uid()` em `lib/catalog.ts`.
+
 ## Não fazer
 - Não criar ficheiros HTML
 - Não chamar supabase fora de `lib/`

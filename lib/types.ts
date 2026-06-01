@@ -60,6 +60,22 @@ export interface CatalogIssue {
   created_at: string
 }
 
+// Linha de apresentação: junta issue + o seu coin + o exemplar na colecção (se houver)
+export interface DisplayRow {
+  issue: CatalogIssue
+  coin: CatalogCoin
+  item: CollectionItem | null
+}
+
+// Graus de conservação (texto livre em collection.grau)
+export const GRAUS = [
+  'FDC', 'Proof', 'BU', 'UNC', 'AU', 'XF', 'VF', 'F', 'VG', 'G',
+] as const
+
+export const FORMATOS_POSSE = [
+  'set', 'caderneta', 'carteira', 'circulacao', 'proof', 'slab', 'outro',
+] as const
+
 // Exemplar na colecção pessoal (numis.collection)
 export interface CollectionItem {
   id: string
