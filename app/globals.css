@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
+/* Moedas do Pinto — design tokens
+   Identidade numismática: creme quente + dourado, estados set/caderneta/não-tem.
+   Base do design Kyle + paleta dourada/creme. Toda a cor vem destes tokens. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Fundos */
+  --mp-bg:            #f2ede2;  /* fundo creme quente da app */
+  --mp-surface:       #fbf8f1;  /* cards / superfícies elevadas */
+  --mp-surface-muted: #efe9dc;  /* chips, linhas alternadas */
+  --mp-border:        #e3dac8;  /* contornos suaves */
+
+  /* Marca — dourado/âmbar */
+  --mp-gold:          #b8893b;  /* destaque de marca, títulos */
+  --mp-gold-strong:   #9a6f2a;  /* valores, hover */
+  --mp-gold-soft:     #d8b774;  /* realces claros */
+
+  /* Texto */
+  --mp-ink:           #2c261c;  /* texto principal (quente, não preto) */
+  --mp-ink-soft:      #6b6253;  /* subtítulos, metadata */
+  --mp-ink-faint:     #9a8f7c;  /* labels, anos inativos */
+
+  /* Estados da coleção */
+  --mp-set:           #2f9e6f;  /* verde — em set */
+  --mp-set-bg:        #e3f3ea;
+  --mp-caderneta:     #3b7fd4;  /* azul — em caderneta */
+  --mp-caderneta-bg:  #e4eefb;
+  --mp-falta:         #a9703f;  /* cobre/castanho — não tem */
+  --mp-falta-bg:      #f0e6da;
+
+  /* Discos de moeda */
+  --mp-coin:          #b98c5a;  /* cobre/bronze da moeda */
+  --mp-coin-dark:     #8a6238;
+  --mp-coin-empty:    #d8cfc0;  /* moeda em falta (contorno claro) */
+
+  /* Tipografia */
+  --mp-font-serif: var(--font-serif, ui-serif, Georgia, "Times New Roman", serif);
+  --mp-font-sans:  var(--font-sans, ui-sans-serif, system-ui, sans-serif);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-mp-bg:            var(--mp-bg);
+  --color-mp-surface:       var(--mp-surface);
+  --color-mp-surface-muted: var(--mp-surface-muted);
+  --color-mp-border:        var(--mp-border);
+  --color-mp-gold:          var(--mp-gold);
+  --color-mp-gold-strong:   var(--mp-gold-strong);
+  --color-mp-gold-soft:     var(--mp-gold-soft);
+  --color-mp-ink:           var(--mp-ink);
+  --color-mp-ink-soft:      var(--mp-ink-soft);
+  --color-mp-ink-faint:     var(--mp-ink-faint);
+  --color-mp-set:           var(--mp-set);
+  --color-mp-set-bg:        var(--mp-set-bg);
+  --color-mp-caderneta:     var(--mp-caderneta);
+  --color-mp-caderneta-bg:  var(--mp-caderneta-bg);
+  --color-mp-falta:         var(--mp-falta);
+  --color-mp-falta-bg:      var(--mp-falta-bg);
+  --color-mp-coin:          var(--mp-coin);
+  --color-mp-coin-dark:     var(--mp-coin-dark);
+  --color-mp-coin-empty:    var(--mp-coin-empty);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-serif: var(--mp-font-serif);
+  --font-sans:  var(--mp-font-sans);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--mp-bg);
+  color: var(--mp-ink);
+  font-family: var(--mp-font-sans);
 }

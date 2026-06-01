@@ -54,28 +54,28 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
       onClick={onClose}
     >
       <div
-        className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 max-h-[92vh] overflow-auto"
+        className="bg-mp-surface w-full max-w-lg rounded-t-2xl sm:rounded-2xl p-6 max-h-[92vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 mb-5">
           <span className="text-3xl flex-none">{flagOf(row.coin.pais_codigo)}</span>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold leading-tight">{row.coin.pais_nome}</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-serif font-semibold leading-tight text-mp-ink">{row.coin.pais_nome}</h2>
+            <p className="text-sm text-mp-ink-soft">
               {row.coin.denominacao ?? row.coin.titulo} · <strong>{row.issue.ano}</strong>
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-mp-ink-faint hover:text-mp-ink text-xl leading-none">×</button>
         </div>
 
         <div className="mb-4">
-          <span className="block text-[11px] uppercase tracking-wide text-gray-400 mb-2">Posse</span>
+          <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-2">Posse</span>
           <div className="flex gap-2">
             <button
               onClick={() => setTenho(true)}
               className={
                 'flex-1 rounded-lg py-2.5 text-sm font-medium border ' +
-                (tenho ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-500')
+                (tenho ? 'border-mp-set bg-mp-set-bg text-mp-set' : 'border-mp-border text-mp-ink-soft')
               }
             >
               Tenho
@@ -84,7 +84,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
               onClick={() => setTenho(false)}
               className={
                 'flex-1 rounded-lg py-2.5 text-sm font-medium border ' +
-                (!tenho ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-gray-200 text-gray-500')
+                (!tenho ? 'border-mp-falta bg-mp-falta-bg text-mp-falta' : 'border-mp-border text-mp-ink-soft')
               }
             >
               Não tenho
@@ -95,21 +95,21 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         {tenho && (
           <div className="grid grid-cols-2 gap-3 mb-4">
             <label className="block">
-              <span className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Quantidade</span>
+              <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Quantidade</span>
               <input
                 type="number"
                 min={1}
                 value={quantidade}
                 onChange={(e) => setQuantidade(parseInt(e.target.value, 10) || 1)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
               />
             </label>
             <label className="block">
-              <span className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Formato</span>
+              <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Formato</span>
               <select
                 value={formato ?? ''}
                 onChange={(e) => setFormato((e.target.value || null) as CollectionItem['formato_posse'])}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
               >
                 {FORMATOS_POSSE.map((f) => (
                   <option key={f} value={f}>{f}</option>
@@ -117,11 +117,11 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
               </select>
             </label>
             <label className="block">
-              <span className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Conservação</span>
+              <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Conservação</span>
               <select
                 value={grau}
                 onChange={(e) => setGrau(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+                className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
               >
                 <option value="">—</option>
                 {GRAUS.map((g) => (
@@ -133,26 +133,26 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         )}
 
         <label className="block mb-5">
-          <span className="block text-[11px] uppercase tracking-wide text-gray-400 mb-1">Nota</span>
+          <span className="block text-[11px] uppercase tracking-wide text-mp-ink-faint mb-1">Nota</span>
           <textarea
             value={nota}
             onChange={(e) => setNota(e.target.value)}
             rows={2}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500 resize-y"
+            className="w-full bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold resize-y"
           />
         </label>
 
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 border border-gray-200 rounded-lg py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            className="flex-1 border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
           >
             Cancelar
           </button>
           <button
             onClick={guardar}
             disabled={saving}
-            className="flex-1 bg-amber-500 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-amber-600 disabled:opacity-50"
+            className="flex-1 bg-mp-gold text-white rounded-lg py-2.5 text-sm font-medium hover:bg-mp-gold-strong disabled:opacity-50"
           >
             {saving ? 'A guardar…' : 'Guardar'}
           </button>

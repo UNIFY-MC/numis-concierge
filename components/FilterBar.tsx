@@ -31,7 +31,7 @@ export default function FilterBar({
       <select
         value={pais}
         onChange={(e) => onPais(e.target.value)}
-        className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+        className="bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
       >
         <option value="">Todos os países</option>
         {paises.map((p) => (
@@ -41,7 +41,7 @@ export default function FilterBar({
         ))}
       </select>
 
-      <div className="inline-flex bg-gray-100 rounded-full p-1">
+      <div className="inline-flex bg-mp-surface-muted rounded-full p-1">
         {ESTADOS.map((e) => (
           <button
             key={e.v}
@@ -49,8 +49,8 @@ export default function FilterBar({
             className={
               'px-4 py-1.5 rounded-full text-sm font-medium transition-colors ' +
               (estado === e.v
-                ? 'bg-white shadow-sm text-gray-900'
-                : 'text-gray-500 hover:text-gray-700')
+                ? 'bg-mp-gold text-white shadow-sm'
+                : 'text-mp-ink-soft hover:text-mp-ink')
             }
           >
             {e.label}
@@ -62,7 +62,7 @@ export default function FilterBar({
         value={pesquisa}
         onChange={(e) => onPesquisa(e.target.value)}
         placeholder="Procurar país, ano, denominação…"
-        className="flex-1 min-w-[180px] bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-amber-500"
+        className="flex-1 min-w-[180px] bg-mp-surface border border-mp-border rounded-lg px-3 py-2 text-sm outline-none focus:border-mp-gold"
       />
     </div>
   )

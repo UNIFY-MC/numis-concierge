@@ -129,12 +129,22 @@ export default function MoedasCollection() {
       prev.map((r) => (r.issue.id === selecionada.issue.id ? { ...r, item: saved } : r)))
   }
 
-  if (loading) return <div className="p-8 text-gray-400">A carregar…</div>
-  if (erro) return <div className="p-8 text-red-500">Erro: {erro}</div>
+  if (loading) return <div className="p-8 text-mp-ink-faint">A carregar…</div>
+  if (erro) return <div className="p-8 text-mp-falta">Erro: {erro}</div>
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-5">A minha colecção</h1>
+      <header className="flex items-center gap-3 mb-6">
+        <span className="w-11 h-11 rounded-full grid place-items-center bg-mp-gold text-white text-xl flex-none">⊚</span>
+        <div>
+          <h1 className="text-2xl font-serif font-semibold leading-none">
+            Moedas do <span className="text-mp-gold">Pinto</span>
+          </h1>
+          <p className="text-xs text-mp-ink-soft mt-1">
+            Coleção por país · set · caderneta · não tem
+          </p>
+        </div>
+      </header>
 
       <StatsBar total={stats.total} tenho={stats.tenho} />
 
@@ -149,7 +159,7 @@ export default function MoedasCollection() {
       />
 
       {grupos.length === 0 ? (
-        <p className="text-gray-400 py-8 text-center">Sem moedas para este filtro.</p>
+        <p className="text-mp-ink-faint py-8 text-center">Sem moedas para este filtro.</p>
       ) : (
         <div className="space-y-3">
           {grupos.map((g) => (

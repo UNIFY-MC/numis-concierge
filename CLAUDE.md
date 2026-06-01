@@ -31,6 +31,18 @@ Campos sem dados no HTML (metal das comemorativas, grau, preços, fotos, km_ref,
 Ver `.env.local.example` — Supabase + Anthropic + Resend.
 Seed de dados requer `SUPABASE_SERVICE_ROLE_KEY` (só local, nunca versionada).
 
+## Design system
+A identidade visual é **Moedas do Pinto**: ver `app/globals.css` (tokens `--mp-*`).
+Base do design Kyle + paleta dourada/creme. **Toda a cor vem destes tokens, nunca
+hardcoded** (proibido `bg-gray-*`, `text-amber-*`, etc.).
+- Fundo da app: `bg-mp-bg` (creme). Cards/superfícies: `bg-mp-surface`.
+- Marca/títulos/valores: `text-mp-gold` / `text-mp-gold-strong`. Botão primário: `bg-mp-gold`.
+- Estados: set = `mp-set` (verde), caderneta = `mp-caderneta` (azul), não tem = `mp-falta` (cobre).
+  Aplicar nos chips, dots e barras multicolor.
+- Tipografia: títulos e números grandes usam serifa (`font-serif` → Fraunces via next/font);
+  corpo usa `font-sans` (Outfit). Variáveis ligadas em `app/layout.tsx`.
+- Excepções neutras permitidas: `text-white` sobre dourado, `bg-black/40` no scrim de modais.
+
 ## Autenticação (estado actual)
 - **Só existe um gate de password de UI**, não auth real. `middleware.ts` protege
   todas as rotas excepto `/login` e assets; a password vive em `APP_PASSWORD`
