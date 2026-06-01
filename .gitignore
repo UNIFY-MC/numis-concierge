@@ -53,3 +53,6 @@ bce-estrutura.json
 # Artefacto de scrape comemorativas BCE (regenerável)
 bce-comemorativas.json
 bce-cruzamento.json
+candidatas-comem.json
+colecao-candidatas.json
+ambiguas-revisao.json

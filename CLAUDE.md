@@ -13,6 +13,14 @@ Segue as convenções globais em ~/.claude/CLAUDE.md.
 - `components/` — um ficheiro por componente
 - `app/(app)/moedas/page.tsx` — só composição
 
+## Fonte de verdade do catálogo (REGRA CRÍTICA)
+**Só se criam novas moedas (`catalog_coins`/`catalog_issues`) comprovando a emissão
+pela fonte de verdade: bancos centrais nacionais ou Numista. NUNCA a partir do HTML
+antigo nem de entradas avulsas.** O HTML do colecionador serve só para saber o que
+ele *tem* (posse/`collection`), não o que *existe* — pode conter moedas que nunca
+foram emitidas. Importar sempre da fonte oficial e só depois cruzar com a coleção;
+o que não casar com confiança fica para revisão, nunca se inventa.
+
 ## Modelo de dados
 Schema Supabase: `numis` (isolado do `public` dos outros projectos no mesmo cluster; exposto ao PostgREST via `pgrst.db_schemas`).
 
