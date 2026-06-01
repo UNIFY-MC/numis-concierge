@@ -14,6 +14,13 @@ interface TabelaViewProps {
 
 type Col = 'pais' | 'tipo' | 'moeda' | 'face' | 'ano' | 'casa' | 'estado' | 'qtd' | 'valor'
 
+// Ano sempre como número limpo (4 dígitos), nunca o texto cru do `ano`
+// (que pode ter sufixos de variante: "2005 c", "2022 bebé" — esses vão à etiqueta).
+function anoNum(r: DisplayRow): string {
+  const n = r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10)
+  return Number.isFinite(n) ? String(n) : ''
+}
+
 function valOf(r: DisplayRow, col: Col): string | number {
   switch (col) {
     case 'pais':   return r.coin.pais_nome
@@ -73,7 +80,8 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
     const as = new Set<string>()
     for (const r of rows) {
       ps.set(r.coin.pais_codigo, r.coin.pais_nome)
-      if (r.issue.ano) as.add(r.issue.ano)
+      const a = anoNum(r)
+      if (a) as.add(a)
     }
     return {
       paises: [...ps.entries()].sort((a, b) => a[1].localeCompare(b[1])),
@@ -89,7 +97,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
       if (filtroPais && r.coin.pais_codigo !== filtroPais) return false
       if (filtroTipo === 'circulacao' && r.coin.comemorativa) return false
       if (filtroTipo === 'comemorativa' && !r.coin.comemorativa) return false
-      if (filtroAno && r.issue.ano !== filtroAno) return false
+      if (filtroAno && anoNum(r) !== filtroAno) return false
       if (filtroEstado && estadoDe(r.item) !== filtroEstado) return false
       return true
     })
@@ -279,7 +287,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onQuantidade, o
                   <td className="px-3 py-1.5 text-right">
                     {r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}
                   </td>
-                  <td className="px-3 py-1.5">{r.issue.ano}</td>
+                  <td className="px-3 py-1.5">{anoNum(r) || r.issue.ano}</td>
                   <td className="px-3 py-1.5 text-mp-ink-soft">{r.issue.casa_moeda ?? '—'}</td>
                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                     <EstadoSelector est={est} onChange={(f) => onEstado(r, f)} />
