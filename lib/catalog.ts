@@ -2,12 +2,23 @@ import { supabase } from './supabase'
 import type { CatalogCoin, CatalogIssue, CollectionItem } from './types'
 
 export async function getCatalogCoins(): Promise<CatalogCoin[]> {
-  const { data, error } = await supabase
-    .from('catalog_coins')
-    .select('*')
-    .order('pais_nome', { ascending: true })
-  if (error) throw error
-  return data ?? []
+  // catalog_coins passou os 1000 (limite do PostgREST) — paginar a leitura.
+  const PAGE = 1000
+  let from = 0
+  const all: CatalogCoin[] = []
+  for (;;) {
+    const { data, error } = await supabase
+      .from('catalog_coins')
+      .select('*')
+      .order('pais_nome', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all
 }
 
 export async function getCatalogByCountry(paisCodigo: string): Promise<CatalogCoin[]> {

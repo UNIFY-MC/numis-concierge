@@ -19,6 +19,7 @@ import ValorPorPais from './ValorPorPais'
 import TabelaView from './TabelaView'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
 import PrintFalta, { type GrupoFalta } from './PrintFalta'
+import FamiliaTabs, { type GrupoFamilia, FAMILIAS_DO_GRUPO } from './FamiliaTabs'
 
 const DE_MINTS = ['A', 'D', 'F', 'G', 'J'] as const
 
@@ -37,6 +38,7 @@ export default function MoedasCollection() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
+  const [grupo, setGrupo] = useState<GrupoFamilia>('euro')
   const [vista, setVista] = useState<Vista>('emissor')
   const [sort, setSort] = useState<SortBy>('pais')
   const [estado, setEstado] = useState<EstadoFiltro>('todas')
@@ -71,11 +73,27 @@ export default function MoedasCollection() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Stats globais (fixas, sobre tudo)
-  const stats = useMemo(() => {
-    const s = { total: rows.length, set: 0, cad: 0, naotem: 0, vSet: 0, vCad: 0, emissores: 0 }
-    const codigos = new Set<string>()
+  // Contagem por grupo de família (para os separadores) e subconjunto activo.
+  const contagens = useMemo(() => {
+    const c: Record<GrupoFamilia, number> = { euro: 0, colecao: 0, historico: 0 }
     for (const r of rows) {
+      for (const [g, fams] of Object.entries(FAMILIAS_DO_GRUPO)) {
+        if (r.coin.familia && fams.includes(r.coin.familia)) { c[g as GrupoFamilia]++; break }
+      }
+    }
+    return c
+  }, [rows])
+
+  const rowsFam = useMemo(() => {
+    const fams = FAMILIAS_DO_GRUPO[grupo]
+    return rows.filter((r) => r.coin.familia && fams.includes(r.coin.familia))
+  }, [rows, grupo])
+
+  // Stats do grupo de família activo
+  const stats = useMemo(() => {
+    const s = { total: rowsFam.length, set: 0, cad: 0, naotem: 0, vSet: 0, vCad: 0, emissores: 0 }
+    const codigos = new Set<string>()
+    for (const r of rowsFam) {
       codigos.add(r.coin.pais_codigo)
       const e = estadoDe(r.item)
       if (e === 'set') { s.set++; s.vSet += valorColecao(r.coin, r.itens) }
@@ -84,12 +102,12 @@ export default function MoedasCollection() {
     }
     s.emissores = codigos.size
     return s
-  }, [rows])
+  }, [rowsFam])
 
-  // Filtro estado + pesquisa
+  // Filtro estado + pesquisa (sobre o grupo de família activo)
   const visibleRows = useMemo(() => {
     const q = pesquisa.trim().toLowerCase()
-    return rows.filter((r) => {
+    return rowsFam.filter((r) => {
       const e = estadoDe(r.item)
       if (estado === 'tenho' && e === 'naotem') return false
       if ((estado === 'set' || estado === 'caderneta' || estado === 'naotem') && e !== estado) return false
@@ -99,12 +117,12 @@ export default function MoedasCollection() {
       }
       return true
     })
-  }, [rows, estado, pesquisa])
+  }, [rowsFam, estado, pesquisa])
 
-  // Agregados por país (contagens completas sobre todas as rows do país)
+  // Agregados por país (contagens completas sobre o grupo de família activo)
   const agregados = useMemo(() => {
     const m = new Map<string, PaisAgregado>()
-    for (const r of rows) {
+    for (const r of rowsFam) {
       const vcode = virtualCodigo(r)
       let a = m.get(vcode)
       if (!a) {
@@ -126,7 +144,7 @@ export default function MoedasCollection() {
     const residualDe = m.get('de')
     if (temCasas && residualDe) residualDe.nome = 'Alemanha · por atribuir'
     return m
-  }, [rows])
+  }, [rowsFam])
 
   // Países a mostrar na grelha (os que têm rows visíveis), ordenados
   const paisesGrelha = useMemo(() => {
@@ -144,10 +162,10 @@ export default function MoedasCollection() {
     [visibleRows, paisAberto],
   )
 
-  // Grupos de em-falta para impressão (sobre o catálogo completo, ignorando o filtro)
+  // Grupos de em-falta para impressão (sobre o grupo de família activo, ignorando o filtro estado/pesquisa)
   const gruposFalta = useMemo<GrupoFalta[]>(() => {
     const m = new Map<string, GrupoFalta>()
-    for (const r of rows) {
+    for (const r of rowsFam) {
       if (estadoDe(r.item) !== 'naotem') continue
       const vcode = virtualCodigo(r)
       let g = m.get(vcode)
@@ -159,7 +177,7 @@ export default function MoedasCollection() {
       g.faltam.push(r)
     }
     return [...m.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
-  }, [rows, agregados])
+  }, [rowsFam, agregados])
 
   const gruposParaImprimir = useMemo<GrupoFalta[]>(() => {
     if (!imprimir) return []
@@ -398,6 +416,8 @@ export default function MoedasCollection() {
         onImportar={importar}
       />
       <input ref={fileRef} type="file" accept="application/json" hidden onChange={onFile} />
+
+      <FamiliaTabs grupo={grupo} onChange={(g) => { setGrupo(g); setPaisAberto(null) }} contagens={contagens} />
 
       <ViewTabs vista={vista} onChange={(v) => { setVista(v); setPaisAberto(null) }} />
 

@@ -1,8 +1,19 @@
+// Famílias do catálogo (separam o euro de circulação da coleção e do histórico).
+export type Familia = 'euro_circulacao' | 'euro_comemorativa' | 'euro_colecao' | 'historico'
+export const FAMILIA_LABEL: Record<Familia, string> = {
+  euro_circulacao: 'Circulação',
+  euro_comemorativa: 'Comemorativas',
+  euro_colecao: 'Coleção',
+  historico: 'Histórico',
+}
+
 // Catálogo global de tipos de moeda (numis.catalog_coins)
 export interface CatalogCoin {
   id: string
   titulo: string
   categoria: 'coin' | 'banknote' | 'token' | 'exonumia'
+  familia: Familia | null
+  moeda_hist: string | null
   pais_codigo: string
   pais_nome: string
   valor_facial: number | null

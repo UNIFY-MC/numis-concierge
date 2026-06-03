@@ -23,6 +23,13 @@ const supabase = createClient(SUPA_URL, SUPA_KEY, { db: { schema: 'numis' }, aut
 const PROBE = process.argv.includes('--probe')
 const li = process.argv.indexOf('--limit')
 const LIMIT = li >= 0 ? parseInt(process.argv[li + 1], 10) : Infinity
+// --familia euro (defeito: as 4 famílias euro) | historico | all
+const fi = process.argv.indexOf('--familia')
+const FAM_ARG = fi >= 0 ? process.argv[fi + 1] : 'euro'
+const FAMILIAS =
+  FAM_ARG === 'all' ? null
+  : FAM_ARG === 'historico' ? ['historico']
+  : ['euro_circulacao', 'euro_comemorativa', 'euro_colecao']
 const BUCKET = 'moedas'
 const PUBLIC_BASE = `${SUPA_URL}/storage/v1/object/public/${BUCKET}/`
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
@@ -49,12 +56,21 @@ async function paraStorage(coinId, lado, url) {
 }
 
 async function main() {
-  const { data: coins, error } = await supabase
+  let q = supabase
     .from('catalog_coins')
     .select('id, pais_nome, denominacao, anverso_img, reverso_img')
     .or('anverso_img.not.is.null,reverso_img.not.is.null')
     .order('pais_nome')
-  if (error) { console.error('❌', error.message); process.exit(1) }
+  if (FAMILIAS) q = q.in('familia', FAMILIAS)
+  // Supabase devolve no máximo 1000 por pedido — pagina-se a leitura
+  const coins = []
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await q.range(de, de + 999)
+    if (error) { console.error('❌', error.message); process.exit(1) }
+    coins.push(...data)
+    if (data.length < 1000) break
+  }
+  console.log(`(família: ${FAM_ARG} · ${coins.length} moedas no catálogo)`)
 
   // só as que ainda têm pelo menos um URL externo
   const pendentes = coins.filter((c) => (c.anverso_img && !jaNosso(c.anverso_img)) || (c.reverso_img && !jaNosso(c.reverso_img)))
