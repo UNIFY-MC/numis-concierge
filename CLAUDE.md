@@ -15,11 +15,21 @@ Segue as convenções globais em ~/.claude/CLAUDE.md.
 
 ## Fonte de verdade do catálogo (REGRA CRÍTICA)
 **Só se criam novas moedas (`catalog_coins`/`catalog_issues`) comprovando a emissão
-pela fonte de verdade: bancos centrais nacionais ou Numista. NUNCA a partir do HTML
-antigo nem de entradas avulsas.** O HTML do colecionador serve só para saber o que
-ele *tem* (posse/`collection`), não o que *existe* — pode conter moedas que nunca
-foram emitidas. Importar sempre da fonte oficial e só depois cruzar com a coleção;
+por uma fonte de verdade permitida: bancos centrais nacionais, Numista ou Maktun.**
+O HTML antigo do colecionador serve só para saber o que ele *tem*
+(posse/`collection`), não o que *existe* — pode conter moedas que nunca foram
+emitidas. Importar sempre de uma fonte permitida e só depois cruzar com a coleção;
 o que não casar com confiança fica para revisão, nunca se inventa.
+
+Ao importar/enriquecer via Maktun:
+- Guardar sempre a origem quando possível (`source_url`, id/código externo ou
+  referência equivalente) nos scripts/logs de importação.
+- Usar Maktun para enriquecer fotos, descrições e metadados de moedas existentes
+  ou para criar novas moedas apenas quando o match for inequívoco.
+- Não fazer hotlink permanente de imagens: descarregar e migrar para o nosso
+  Supabase Storage antes de apontar a BD.
+- Respeitar robots.txt, rate limits razoáveis e páginas que exijam sessão/login.
+- Entradas ambíguas, duplicadas ou sem prova suficiente ficam para revisão manual.
 
 ## Modelo de dados
 Schema Supabase: `numis` (isolado do `public` dos outros projectos no mesmo cluster; exposto ao PostgREST via `pgrst.db_schemas`).
@@ -35,12 +45,14 @@ Conservação usa escala europeia/Sheldon em `collection.grau` (texto livre: UNC
 
 Campos sem dados no HTML (metal das comemorativas, grau, preços, fotos, km_ref, numista_id) ficam `null` — preencher depois via Numista API, nunca inventar.
 
-## Enriquecimento Numista (uma vez, fica na BD)
-A app **nunca** chama a Numista em runtime. Os dados (fotos, peso, diâmetro,
-composição, km_ref, numista_id, tiragem) são importados **uma só vez** para o
-Supabase pelo script `scripts/enrich-numista.mjs` e a partir daí vivem na BD.
-Só se volta à API quando saem moedas novas (correr de novo; é resumível —
-salta tudo o que já tem `numista_id`).
+## Enriquecimento externo (uma vez, fica na BD)
+A app **nunca** chama Numista/Maktun em runtime. Os dados (fotos, peso, diâmetro,
+composição, km_ref, ids externos, tiragem) são importados **uma só vez** para o
+Supabase por scripts locais e a partir daí vivem na BD.
+Para Numista usar `scripts/enrich-numista.mjs`; para Maktun criar/usar script
+equivalente com cache, rate limit e modo `--probe` antes de escrever.
+Só se volta às fontes externas quando saem moedas novas ou faltam imagens/metadados
+(correr de novo; deve ser resumível — saltar tudo o que já está enriquecido).
 - Quota gratuita: 2000 req/mês. O catálogo euro (~618 coins) cabe num run.
 - `--probe` confirma o shape da API antes de gastar quota; `--limit N` corre por lotes.
 - Respostas cacheadas em `scripts/.numista-cache/` (gitignored) para re-runs baratos.

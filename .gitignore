@@ -56,3 +56,8 @@ bce-cruzamento.json
 candidatas-comem.json
 colecao-candidatas.json
 ambiguas-revisao.json
+
+# Token de sessão Maktun (local, nunca versionar)
+scripts/.maktun-token
+maktun-cand.json
+maktun-fotos.json
