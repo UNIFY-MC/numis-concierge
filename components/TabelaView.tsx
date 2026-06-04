@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent as RMouseEvent } from 'react'
 import { estadoDe } from '@/lib/types'
 import { eur } from '@/lib/valor'
 import { casaEmissor, casaEmissorCurto } from '@/lib/emissores'
@@ -174,22 +174,39 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   // filtros genéricos por coluna: valor seleccionado (texto) para cada coluna.
   const [filtros, setFiltros] = useState<Partial<Record<Col, string>>>({})
   const [filtroAberto, setFiltroAberto] = useState<Col | null>(null)
+  const [larguras, setLarguras] = useState<Partial<Record<Col, number>>>({})
+  const resize = useRef<{ col: Col; x0: number; w0: number } | null>(null)
   const [pagina, setPagina] = useState(0)
   const carregou = useRef(false)
+
+  function iniciarResize(col: Col, e: RMouseEvent) {
+    e.preventDefault(); e.stopPropagation()
+    const th = (e.currentTarget as HTMLElement).closest('th')
+    resize.current = { col, x0: e.clientX, w0: th?.offsetWidth ?? 100 }
+    function mover(ev: MouseEvent) {
+      if (!resize.current) return
+      const w = Math.max(36, resize.current.w0 + (ev.clientX - resize.current.x0))
+      setLarguras((l) => ({ ...l, [resize.current!.col]: w }))
+    }
+    function fim() { resize.current = null; document.removeEventListener('mousemove', mover); document.removeEventListener('mouseup', fim) }
+    document.addEventListener('mousemove', mover)
+    document.addEventListener('mouseup', fim)
+  }
 
   // carregar prefs guardadas
   useEffect(() => {
     if (!prefsKey) { carregou.current = true; return }
-    getUiPrefs<{ colVis?: Col[]; sorts?: SortRule[] }>(`tabela:${prefsKey}`).then((p) => {
+    getUiPrefs<{ colVis?: Col[]; sorts?: SortRule[]; larguras?: Partial<Record<Col, number>> }>(`tabela:${prefsKey}`).then((p) => {
       if (p?.colVis?.length) setColVis(p.colVis.filter((c) => LABEL[c]))
       if (p?.sorts) setSorts(p.sorts.filter((s) => LABEL[s.col]))
+      if (p?.larguras) setLarguras(p.larguras)
     }).finally(() => { carregou.current = true })
   }, [prefsKey])
   // guardar prefs quando mudam (após o carregamento inicial)
   useEffect(() => {
     if (!prefsKey || !carregou.current) return
-    setUiPrefs(`tabela:${prefsKey}`, { colVis, sorts })
-  }, [colVis, sorts, prefsKey])
+    setUiPrefs(`tabela:${prefsKey}`, { colVis, sorts, larguras })
+  }, [colVis, sorts, larguras, prefsKey])
 
   // Colunas com filtro (todas excepto as contínuas de edição).
   const SEM_FILTRO = new Set<Col>(['fotos', 'moeda', 'comemoracao', 'set', 'caderneta', 'bebe', 'qtd', 'facial', 'mercado'])
@@ -284,15 +301,18 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
           <Disco url={r.coin.reverso_img} />
         </span>
       )
-      case 'moeda': return (
-        <span className="flex items-center gap-2">
-          <span className="flex shrink-0 gap-0.5">
-            <Disco url={r.coin.anverso_img} />
-            <Disco url={r.coin.reverso_img} />
+      case 'moeda': {
+        const d = denomLimpa(r.coin); const t = temaLimpo(r.coin)
+        return (
+          <span className="flex items-center gap-2">
+            <span className="flex shrink-0 gap-0.5">
+              <Disco url={r.coin.anverso_img} />
+              <Disco url={r.coin.reverso_img} />
+            </span>
+            <span className="truncate">{d}{t && !d.includes(t) ? <span className="text-mp-ink-soft"> · {t}</span> : null}</span>
           </span>
-          <span className="truncate">{denomLimpa(r.coin) || '—'}</span>
-        </span>
-      )
+        )
+      }
       case 'comemoracao': { const t = temaLimpo(r.coin); return <span className="truncate text-mp-ink-soft" title={t}>{t || '—'}</span> }
       case 'denom': return <span className="truncate">{denomLimpa(r.coin) || '—'}</span>
       case 'serie': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{r.coin.serie || '—'}</span>
@@ -390,10 +410,12 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                 const meta = COLUNAS.find((c) => c.key === key)!
                 const s = sortDe(key)
                 const filtro = filtroDaCol(key)
+                const w = larguras[key]
                 return (
-                  <th key={key} className={'whitespace-nowrap px-2.5 py-1.5 font-semibold ' + (meta.right ? 'text-right' : '')}>
-                    <span className="inline-flex items-center gap-1">
-                      <button onClick={() => ordenarPor(key)} className="cursor-pointer select-none hover:text-mp-ink">
+                  <th key={key} style={w ? { width: w, minWidth: w, maxWidth: w } : undefined}
+                    className={'relative whitespace-nowrap px-2.5 py-1.5 font-semibold ' + (meta.right ? 'text-right' : '')}>
+                    <span className={'inline-flex items-center gap-1 ' + (w ? 'max-w-full overflow-hidden align-middle' : '')}>
+                      <button onClick={() => ordenarPor(key)} className="cursor-pointer select-none truncate hover:text-mp-ink">
                         {meta.label}{s ? (s.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}
                       </button>
                       {filtro && (
@@ -413,35 +435,44 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                         </span>
                       )}
                     </span>
+                    {/* puxador para redimensionar a coluna */}
+                    <span onMouseDown={(e) => iniciarResize(key, e)} title="Arrastar para redimensionar"
+                      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-mp-gold/50" />
                   </th>
                 )
               })}
+              <th className="w-full" />
             </tr>
           </thead>
           <tbody>
             {ordenadas.length === 0 && (
-              <tr><td colSpan={colVis.length} className="px-4 py-10 text-center text-sm text-mp-ink-faint">Nenhuma moeda encontrada com os filtros actuais.</td></tr>
+              <tr><td colSpan={colVis.length + 1} className="px-4 py-10 text-center text-sm text-mp-ink-faint">Nenhuma moeda encontrada com os filtros actuais.</td></tr>
             )}
             {visiveis.map((r) => (
               <tr key={r.issue.id} onClick={() => onSelect(r)} className="cursor-pointer border-t border-mp-border/60 hover:bg-mp-surface-muted">
                 {colVis.map((key) => {
                   const meta = COLUNAS.find((c) => c.key === key)!
+                  const w = larguras[key]
                   return (
-                    <td key={key} className={'px-2.5 py-1 ' + (meta.right ? 'text-right ' : '') + (key === 'moeda' ? 'max-w-[260px]' : '')}>
-                      {celula(r, key)}
+                    <td key={key} style={w ? { width: w, maxWidth: w } : undefined}
+                      className={'px-2.5 py-1 ' + (meta.right ? 'text-right ' : '') + (w || key === 'moeda' || key === 'comemoracao' ? 'overflow-hidden' : '')}>
+                      <div className={w || ['moeda', 'comemoracao', 'denom', 'composicao', 'anversodesc', 'reversodesc'].includes(key) ? 'truncate' : ''}>
+                        {celula(r, key)}
+                      </div>
                     </td>
                   )
                 })}
+                <td />
               </tr>
             ))}
           </tbody>
           {filtradas.length > 0 && (
             <tfoot className="sticky bottom-0 border-t-2 border-mp-border bg-mp-surface-muted">
               <tr>
-                <td colSpan={Math.max(1, colVis.length - 1)} className="px-3 py-2 text-xs font-medium text-mp-ink-soft">
-                  {filtradas.length} moedas · {totalSet} set · {totalCad} caderneta · {totalFalta} em falta
+                <td colSpan={colVis.length} className="px-3 py-2 text-xs font-medium text-mp-ink-soft">
+                  {filtradas.length} moedas · {totalSet} set · {totalCad} caderneta · {totalFalta} em falta · <b className="font-serif text-mp-gold-strong">{eur(totalValor)}</b> facial
                 </td>
-                <td className="px-3 py-2 text-right font-serif font-semibold text-mp-gold-strong">{eur(totalValor)}</td>
+                <td />
               </tr>
             </tfoot>
           )}
