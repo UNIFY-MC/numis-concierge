@@ -8,6 +8,7 @@ import {
 import { ERAS, eraDe } from '@/lib/series'
 import { getTags, getCoinTags, type Tag } from '@/lib/tags'
 import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
+import { CONTEXTO } from '@/lib/data/contexto-pt'
 import { itemPrincipal } from '@/lib/types'
 import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao } from '@/lib/types'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
@@ -321,9 +322,16 @@ export default function ColecaoPortugal() {
               <button onClick={() => setVista('tabela')}
                 className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">☰ Tabela</button>
             </div>
-            <h2 className="mb-4 font-serif text-xl font-semibold">
-              {tituloTabela} <span className="text-sm font-normal text-mp-ink-faint">· {coinsDaSerie.length} tipos</span>
+            <h2 className="mb-1 font-serif text-xl font-semibold">
+              {tituloTabela}
+              {serieSel && CONTEXTO[serieSel]?.cognome && <span className="ml-2 text-base font-normal italic text-mp-ink-soft">{CONTEXTO[serieSel]!.cognome}</span>}
+              <span className="ml-2 text-sm font-normal text-mp-ink-faint">· {serieSel && CONTEXTO[serieSel] ? CONTEXTO[serieSel]!.periodo : ''} · {coinsDaSerie.length} tipos</span>
             </h2>
+            {serieSel && CONTEXTO[serieSel] && (
+              <p className="mb-4 max-w-3xl rounded-xl bg-mp-surface px-4 py-3 text-sm leading-relaxed text-mp-ink-soft ring-1 ring-mp-border">
+                {CONTEXTO[serieSel]!.contexto}
+              </p>
+            )}
             <ListaMoedas coins={coinsDaSerie} tenho={tenho} onAbrir={abrirFicha} />
           </div>
         )
@@ -378,7 +386,8 @@ function CartaoSerie({ nome, coins, tenho, onAbrir }: {
           : <span className="text-3xl text-mp-coin">⊚</span>}
       </div>
       <span className="font-serif text-sm font-semibold leading-tight text-mp-ink">{nome}</span>
-      <span className="mt-0.5 text-[11px] text-mp-ink-faint">{periodo(coins)}</span>
+      <span className="mt-0.5 text-[11px] text-mp-ink-faint">{CONTEXTO[nome]?.periodo ?? periodo(coins)}</span>
+      {CONTEXTO[nome]?.cognome && <span className="text-[10px] italic text-mp-ink-faint">{CONTEXTO[nome]!.cognome}</span>}
       <div className="mt-3 flex items-baseline gap-1">
         <span className="font-serif text-2xl font-semibold text-mp-gold-strong">{meus}</span>
         <span className="text-sm text-mp-ink-faint">/ {coins.length}</span>
