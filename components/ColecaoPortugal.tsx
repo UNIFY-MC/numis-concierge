@@ -90,6 +90,17 @@ export default function ColecaoPortugal() {
     })
     aplicaCol(saved)
   }
+  // quantidade de um formato específico (S/C/B) — coluna própria na tabela
+  async function alterarFormatoQtd(row: DisplayRow, formato: FormatoColecao, qtd: number) {
+    const ex = row.itens.find((i) => i.formato_posse === formato)
+    const saved = await upsertCollectionItem({
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: Math.max(0, qtd), formatoPosse: formato,
+      casaMoeda: ex?.casa_moeda ?? null, grau: ex?.grau ?? null,
+      valorBase: ex?.valor_base ?? null, foto: ex?.foto1 ?? null,
+    })
+    aplicaCol(saved)
+  }
   async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
     const alvo = row.item
     const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'set'
@@ -280,6 +291,7 @@ export default function ColecaoPortugal() {
             onImprimir={() => {}}
             onQuantidade={alterarQuantidade}
             onFormato={alterarFormato}
+            onFormatoQtd={alterarFormatoQtd}
             prefsKey="colecoes-pt"
             tagsInfo={{ tags, coinTags }}
             titulo={tituloTabela}

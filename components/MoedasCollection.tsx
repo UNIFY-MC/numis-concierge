@@ -249,6 +249,18 @@ export default function MoedasCollection() {
     setRows((prev) => aplicarSaved(prev, row.issue.id, saved))
   }
 
+  // Tabela: quantidade de um formato específico (S/C/B) — coluna própria.
+  async function alterarFormatoQtd(row: DisplayRow, formato: FormatoColecao, qtd: number) {
+    const ex = row.itens.find((i) => i.formato_posse === formato)
+    const saved = await upsertCollectionItem({
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: Math.max(0, qtd), formatoPosse: formato,
+      casaMoeda: row.item?.casa_moeda ?? null, grau: ex?.grau ?? null,
+      valorBase: ex?.valor_base ?? null, foto: ex?.foto1 ?? null, notaPrivada: ex?.nota_privada ?? null,
+    })
+    setRows((prev) => aplicarSaved(prev, row.issue.id, saved))
+  }
+
   // Tabela: stepper de quantidade — actua no formato principal (ou cria 'set').
   async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
     const qtd = Math.max(0, novaQtd)
@@ -431,6 +443,7 @@ export default function MoedasCollection() {
           onImprimir={() => setImprimir({ tipo: 'geral' })}
           onQuantidade={alterarQuantidade}
           onFormato={alterarFormato}
+          onFormatoQtd={alterarFormatoQtd}
           prefsKey="moedas"
         />
       ) : paisAberto ? (

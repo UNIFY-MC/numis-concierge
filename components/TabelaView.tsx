@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { estadoDe, formatosComMoeda, FORMATOS_COLECAO } from '@/lib/types'
-import { valorColecao, eur } from '@/lib/valor'
+import { estadoDe } from '@/lib/types'
+import { eur } from '@/lib/valor'
 import { casaEmissor, casaEmissorCurto } from '@/lib/emissores'
 import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
 import { getUiPrefs, setUiPrefs } from '@/lib/catalog'
@@ -13,7 +13,8 @@ interface TagsInfo { tags: Tag[]; coinTags: Map<string, Set<string>> }
 type Col =
   | 'pais' | 'tipo' | 'fotos' | 'moeda' | 'comemoracao' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
   | 'numista' | 'face' | 'ano' | 'casa' | 'mintmark' | 'peso' | 'diam' | 'espessura'
-  | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'grau' | 'tiragem' | 'estado' | 'qtd' | 'valor'
+  | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'grau' | 'tiragem'
+  | 'set' | 'caderneta' | 'bebe' | 'qtd' | 'facial' | 'mercado'
 type Dir = 1 | -1
 interface SortRule { col: Col; dir: Dir }
 
@@ -46,12 +47,18 @@ const COLUNAS: ColMeta[] = [
   { key: 'tags', label: 'Coleções' },
   { key: 'grau', label: 'Grau' },
   { key: 'tiragem', label: 'Tiragem', right: true },
-  { key: 'estado', label: 'Estado' },
+  { key: 'set', label: 'Set', right: true },
+  { key: 'caderneta', label: 'Caderneta', right: true },
+  { key: 'bebe', label: 'Bébé', right: true },
   { key: 'qtd', label: 'Qtd', right: true },
-  { key: 'valor', label: 'Valor', right: true },
+  { key: 'facial', label: 'Valor facial', right: true },
+  { key: 'mercado', label: 'Valor mercado', right: true },
 ]
 const LABEL = Object.fromEntries(COLUNAS.map((c) => [c.key, c.label])) as Record<Col, string>
-const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'estado', 'qtd', 'valor']
+const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'set', 'caderneta', 'bebe', 'qtd', 'facial', 'mercado']
+const FORMATO_DE_COL: Partial<Record<Col, FormatoColecao>> = { set: 'set', caderneta: 'caderneta', bebe: 'caderneta_bebe' }
+const qtdFormato = (r: DisplayRow, f: FormatoColecao) => r.itens.find((i) => i.formato_posse === f)?.quantidade ?? 0
+const qtdTotal = (r: DisplayRow) => r.itens.reduce((s, i) => s + (i.quantidade || 0), 0)
 
 const METAIS_PT: Record<string, string> = {
   gold: 'Ouro', silver: 'Prata', copper: 'Cobre', bronze: 'Bronze', brass: 'Latão',
@@ -103,9 +110,12 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'tags':   return ''  // ordenação por tags não se aplica (chips)
     case 'grau':   return r.item?.grau ?? ''
     case 'tiragem': return r.issue.tiragem ?? 0
-    case 'estado': return estadoDe(r.item)
-    case 'qtd':    return r.item?.quantidade ?? 0
-    case 'valor':  return valorColecao(r.coin, r.itens)
+    case 'set':    return qtdFormato(r, 'set')
+    case 'caderneta': return qtdFormato(r, 'caderneta')
+    case 'bebe':   return qtdFormato(r, 'caderneta_bebe')
+    case 'qtd':    return qtdTotal(r)
+    case 'facial': return qtdTotal(r) * (r.coin.valor_facial ?? 0)
+    case 'mercado': return 0
   }
 }
 
@@ -118,27 +128,6 @@ function Disco({ url }: { url: string | null }) {
   )
 }
 
-const FORMATO_CLS: Record<FormatoColecao, string> = {
-  set: 'border-mp-set bg-mp-set-bg text-mp-set',
-  caderneta: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta',
-  caderneta_bebe: 'border-mp-gold bg-mp-falta-bg text-mp-gold-strong',
-}
-function EstadoSelector({ formatos, onChange }: { formatos: Set<FormatoColecao>; onChange: (f: FormatoColecao, ativo: boolean) => void }) {
-  return (
-    <div className="flex gap-1">
-      {FORMATOS_COLECAO.map(({ v, curto, label }) => {
-        const ativo = formatos.has(v)
-        return (
-          <button key={v} onClick={() => onChange(v, !ativo)} title={ativo ? `Retirar de ${label}` : `Marcar em ${label}`}
-            className={'w-6 rounded border px-1 py-0.5 text-[10px] font-semibold leading-none transition-colors ' +
-              (ativo ? FORMATO_CLS[v] : 'border-mp-border text-mp-ink-faint hover:border-mp-ink-soft hover:text-mp-ink-soft')}>
-            {curto}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
 function StepperQtd({ qtd, onChange }: { qtd: number; onChange: (n: number) => void }) {
   const [txt, setTxt] = useState(String(qtd))
   useEffect(() => { setTxt(String(qtd)) }, [qtd])
@@ -167,6 +156,7 @@ interface TabelaViewProps {
   onImprimir: () => void
   onQuantidade: (row: DisplayRow, qtd: number) => void
   onFormato: (row: DisplayRow, formato: FormatoColecao, ativo: boolean) => void
+  onFormatoQtd?: (row: DisplayRow, formato: FormatoColecao, qtd: number) => void  // qtd por formato (S/C/B)
   prefsKey?: string  // se definido, guarda colunas/ordenação na BD por esta chave
   tagsInfo?: TagsInfo  // coleções temáticas, para a coluna "Coleções"
   titulo?: string      // mostrado na barra de ações (alinhado com os botões)
@@ -175,7 +165,9 @@ interface TabelaViewProps {
   acaoExtra?: ReactNode  // ex. toggle Lista/Tabela, na mesma linha dos botões
 }
 
-export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato, prefsKey, tagsInfo, titulo, subtitulo, onVoltar, acaoExtra }: TabelaViewProps) {
+export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato, onFormatoQtd, prefsKey, tagsInfo, titulo, subtitulo, onVoltar, acaoExtra }: TabelaViewProps) {
+  // fallback: se o pai não passa onFormatoQtd, usa onFormato (liga/desliga) + onQuantidade
+  const mudarFormatoQtd = onFormatoQtd ?? ((row: DisplayRow, f: FormatoColecao, q: number) => { onFormato(row, f, q > 0); if (q > 0) onQuantidade(row, q) })
   const [colVis, setColVis] = useState<Col[]>(COL_DEFAULT)
   const [sorts, setSorts] = useState<SortRule[]>([])
   const [painel, setPainel] = useState<'cols' | 'sort' | null>(null)
@@ -200,7 +192,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   }, [colVis, sorts, prefsKey])
 
   // Colunas com filtro (todas excepto as contínuas de edição).
-  const SEM_FILTRO = new Set<Col>(['qtd', 'valor', 'fotos', 'moeda', 'comemoracao'])
+  const SEM_FILTRO = new Set<Col>(['fotos', 'moeda', 'comemoracao', 'set', 'caderneta', 'bebe', 'qtd', 'facial', 'mercado'])
   // valores distintos por coluna (para as opções do dropdown de filtro)
   const valoresPorCol = useMemo(() => {
     const m = new Map<Col, string[]>()
@@ -253,7 +245,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   const paginaSegura = Math.min(pagina, totalPaginas - 1)
   const visiveis = useMemo(() => ordenadas.slice(paginaSegura * PAGINA_TAM, (paginaSegura + 1) * PAGINA_TAM), [ordenadas, paginaSegura])
 
-  const totalValor = useMemo(() => filtradas.reduce((s, r) => s + valorColecao(r.coin, r.itens), 0), [filtradas])
+  const totalValor = useMemo(() => filtradas.reduce((s, r) => s + qtdTotal(r) * (r.coin.valor_facial ?? 0), 0), [filtradas])
   const totalSet   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'set').length, [filtradas])
   const totalCad   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'caderneta').length, [filtradas])
   const totalFalta = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'naotem').length, [filtradas])
@@ -270,7 +262,6 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   const sortDe = (col: Col): SortRule | undefined => sorts.find((s) => s.col === col)
 
   // filtro embutido no cabeçalho — genérico, qualquer coluna com valores
-  const ESTADO_LABEL: Record<string, string> = { set: 'Set', caderneta: 'Caderneta', naotem: 'Não tem' }
   interface FiltroCol { valor: string; set: (v: string) => void; opcoes: { v: string; label: string }[] }
   function filtroDaCol(key: Col): FiltroCol | null {
     const valores = valoresPorCol.get(key)
@@ -278,7 +269,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
     return {
       valor: filtros[key] ?? '',
       set: (v) => setFiltros((f) => ({ ...f, [key]: v })),
-      opcoes: [{ v: '', label: 'Todos' }, ...valores.map((v) => ({ v, label: key === 'estado' ? (ESTADO_LABEL[v] ?? v) : v }))],
+      opcoes: [{ v: '', label: 'Todos' }, ...valores.map((v) => ({ v, label: v }))],
     }
   }
 
@@ -334,9 +325,15 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
       }
       case 'grau': return <span className="text-mp-ink-soft">{r.item?.grau || '—'}</span>
       case 'tiragem': return <span className="whitespace-nowrap tabular-nums text-mp-ink-soft">{r.issue.tiragem != null ? r.issue.tiragem.toLocaleString('pt-PT') : '—'}</span>
-      case 'estado': return <div onClick={(e) => e.stopPropagation()}><EstadoSelector formatos={formatosComMoeda(r.itens)} onChange={(f, a) => onFormato(r, f, a)} /></div>
-      case 'qtd': return <div onClick={(e) => e.stopPropagation()}><StepperQtd qtd={r.item?.quantidade ?? 0} onChange={(n) => onQuantidade(r, n)} /></div>
-      case 'valor': return <span className="text-mp-gold-strong">{r.itens.length === 0 ? '—' : eur(valorColecao(r.coin, r.itens))}</span>
+      case 'set':
+      case 'caderneta':
+      case 'bebe': {
+        const f = FORMATO_DE_COL[key]!
+        return <div onClick={(e) => e.stopPropagation()}><StepperQtd qtd={qtdFormato(r, f)} onChange={(n) => mudarFormatoQtd(r, f, n)} /></div>
+      }
+      case 'qtd': { const t = qtdTotal(r); return <span className="font-semibold tabular-nums">{t || '—'}</span> }
+      case 'facial': { const v = qtdTotal(r) * (r.coin.valor_facial ?? 0); return <span className="tabular-nums text-mp-ink-soft">{v > 0 ? eur(v) : '—'}</span> }
+      case 'mercado': return <span className="tabular-nums text-mp-ink-faint" title="Por explorar — preços de mercado">—</span>
     }
   }
 
@@ -511,7 +508,7 @@ function PainelColunas({ colVis, setColVis, onClose }: { colVis: Col[]; setColVi
 // ─── Painel de ordenação: até 5 níveis ───
 function PainelOrdenar({ sorts, setSorts, onClose }: { sorts: SortRule[]; setSorts: (s: SortRule[]) => void; onClose: () => void }) {
   const usadas = new Set(sorts.map((s) => s.col))
-  const disponiveis = COLUNAS.filter((c) => c.key !== 'estado' && c.key !== 'qtd')
+  const disponiveis = COLUNAS.filter((c) => !(['set', 'caderneta', 'bebe', 'mercado'] as Col[]).includes(c.key))
   function setNivel(i: number, patch: Partial<SortRule>) {
     setSorts(sorts.map((s, j) => (j === i ? { ...s, ...patch } : s)))
   }
