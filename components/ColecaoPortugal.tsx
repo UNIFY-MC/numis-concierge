@@ -1,29 +1,69 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getCatalogPais, getCollection } from '@/lib/catalog'
+import {
+  getCatalogPais, getCollection, getIssuesForCoin,
+  upsertCollectionItem, applyToAllYears,
+} from '@/lib/catalog'
 import { ERAS, eraDe } from '@/lib/series'
-import type { CatalogCoin } from '@/lib/types'
+import { itemPrincipal } from '@/lib/types'
+import type { CatalogCoin, CollectionItem, DisplayRow } from '@/lib/types'
+import CoinSheet, { type CoinSheetSave } from './CoinSheet'
 
 // Coleção de Portugal organizada como a Colnect: Era → Série/Reinado → moedas.
 // Vista de catálogo (por tipo de moeda), com indicação do que se tem.
 export default function ColecaoPortugal() {
   const [coins, setCoins] = useState<CatalogCoin[]>([])
-  const [tenho, setTenho] = useState<Set<string>>(new Set())
+  const [col, setCol] = useState<CollectionItem[]>([])
   const [loading, setLoading] = useState(true)
   const [eraSel, setEraSel] = useState('monarquia')
   const [serieSel, setSerieSel] = useState<string | null>(null)
+  const [ficha, setFicha] = useState<DisplayRow | null>(null)
+
+  const tenho = useMemo(() => {
+    const t = new Set<string>()
+    for (const it of col) if (it.quantidade > 0 && it.catalog_coin_id) t.add(it.catalog_coin_id)
+    return t
+  }, [col])
 
   useEffect(() => {
     Promise.all([getCatalogPais('pt'), getCollection()])
-      .then(([cs, col]) => {
-        setCoins(cs)
-        const t = new Set<string>()
-        for (const it of col) if (it.quantidade > 0 && it.catalog_coin_id) t.add(it.catalog_coin_id)
-        setTenho(t)
-      })
+      .then(([cs, c]) => { setCoins(cs); setCol(c) })
       .finally(() => setLoading(false))
   }, [])
+
+  // Abre a ficha de uma moeda: busca a sua issue principal + os exemplares que tens.
+  async function abrirFicha(coin: CatalogCoin) {
+    const issues = await getIssuesForCoin(coin.id)
+    const issue = issues[0]
+    if (!issue) return
+    const itens = col.filter((i) => i.catalog_issue_id === issue.id)
+    setFicha({ coin, issue, itens, item: itemPrincipal(itens) })
+  }
+
+  async function guardar(input: CoinSheetSave) {
+    if (!ficha) return
+    const { coin, issue } = ficha
+    const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota }
+    for (const f of input.formatos) {
+      await upsertCollectionItem({
+        catalogCoinId: coin.id, catalogIssueId: issue.id,
+        quantidade: Math.max(1, f.quantidade), formatoPosse: f.formato,
+        grau: f.grau, valorBase: f.valorBase, ...comuns,
+      })
+    }
+    for (const fr of input.removidos) {
+      await upsertCollectionItem({
+        catalogCoinId: coin.id, catalogIssueId: issue.id,
+        quantidade: 0, formatoPosse: fr, grau: null, valorBase: null, ...comuns,
+      })
+    }
+    if (input.aplicarTodos) await applyToAllYears(coin.id, input.formatos[0]?.valorBase ?? null, input.foto)
+    const atual = await getCollection()
+    setCol(atual)
+    const itens = atual.filter((i) => i.catalog_issue_id === issue.id)
+    setFicha({ coin, issue, itens, item: itemPrincipal(itens) })
+  }
 
   // série → { ord, coins }
   const series = useMemo(() => {
@@ -102,6 +142,7 @@ export default function ColecaoPortugal() {
           coins={coinsDaSerie}
           tenho={tenho}
           onVoltar={() => setSerieSel(null)}
+          onAbrir={abrirFicha}
         />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -116,6 +157,8 @@ export default function ColecaoPortugal() {
           ))}
         </div>
       )}
+
+      {ficha && <CoinSheet row={ficha} onClose={() => setFicha(null)} onSave={guardar} />}
     </div>
   )
 }
@@ -162,8 +205,8 @@ function metalDe(c: CatalogCoin): string | null {
   return m ? m[1] : null
 }
 
-function ListaMoedas({ serie, coins, tenho, onVoltar }: {
-  serie: string; coins: CatalogCoin[]; tenho: Set<string>; onVoltar: () => void
+function ListaMoedas({ serie, coins, tenho, onVoltar, onAbrir }: {
+  serie: string; coins: CatalogCoin[]; tenho: Set<string>; onVoltar: () => void; onAbrir: (c: CatalogCoin) => void
 }) {
   const ordenados = [...coins].sort((a, b) => (a.ano_inicio ?? 0) - (b.ano_inicio ?? 0))
   return (
@@ -177,10 +220,11 @@ function ListaMoedas({ serie, coins, tenho, onVoltar }: {
           const meu = tenho.has(c.id)
           const metal = metalDe(c)
           return (
-            <div
+            <button
               key={c.id}
+              onClick={() => onAbrir(c)}
               className={
-                'flex items-center gap-3 rounded-xl border p-2.5 ' +
+                'flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-shadow hover:shadow-md ' +
                 (meu ? 'border-mp-set bg-mp-set-bg' : 'border-mp-border bg-mp-surface')
               }
             >
@@ -203,7 +247,7 @@ function ListaMoedas({ serie, coins, tenho, onVoltar }: {
               >
                 {meu ? 'tenho' : 'falta'}
               </span>
-            </div>
+            </button>
           )
         })}
       </div>
