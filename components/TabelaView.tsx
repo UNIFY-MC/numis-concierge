@@ -10,7 +10,7 @@ import Flag from './Flag'
 interface TagsInfo { tags: Tag[]; coinTags: Map<string, Set<string>> }
 
 type Col =
-  | 'pais' | 'tipo' | 'moeda' | 'comemoracao' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
+  | 'pais' | 'tipo' | 'fotos' | 'moeda' | 'comemoracao' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
   | 'numista' | 'face' | 'ano' | 'casa' | 'mintmark' | 'peso' | 'diam' | 'espessura'
   | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'grau' | 'tiragem' | 'estado' | 'qtd' | 'valor'
 type Dir = 1 | -1
@@ -22,6 +22,7 @@ interface ColMeta { key: Col; label: string; right?: boolean }
 const COLUNAS: ColMeta[] = [
   { key: 'pais', label: 'País' },
   { key: 'tipo', label: 'Tipo' },
+  { key: 'fotos', label: 'Fotos' },
   { key: 'moeda', label: 'Moeda' },
   { key: 'comemoracao', label: 'Comemoração' },
   { key: 'denom', label: 'Denominação' },
@@ -78,6 +79,7 @@ function valOf(r: DisplayRow, col: Col): string | number {
   switch (col) {
     case 'pais':   return r.coin.pais_nome
     case 'tipo':   return r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')
+    case 'fotos':  return ''
     case 'moeda':  return r.coin.denominacao ?? r.coin.titulo ?? ''
     case 'comemoracao': return r.coin.comemorativa ? (r.coin.tema ?? '') : ''
     case 'denom':  return r.coin.denominacao ?? ''
@@ -176,10 +178,8 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   const [colVis, setColVis] = useState<Col[]>(COL_DEFAULT)
   const [sorts, setSorts] = useState<SortRule[]>([])
   const [painel, setPainel] = useState<'cols' | 'sort' | null>(null)
-  const [filtroPais, setFiltroPais] = useState('')
-  const [filtroTipo, setFiltroTipo] = useState<'' | 'circulacao' | 'comemorativa'>('')
-  const [filtroAno, setFiltroAno] = useState('')
-  const [filtroEstado, setFiltroEstado] = useState<'' | 'set' | 'caderneta' | 'naotem'>('')
+  // filtros genéricos por coluna: valor seleccionado (texto) para cada coluna.
+  const [filtros, setFiltros] = useState<Partial<Record<Col, string>>>({})
   const [filtroAberto, setFiltroAberto] = useState<Col | null>(null)
   const [pagina, setPagina] = useState(0)
   const carregou = useRef(false)
@@ -198,23 +198,32 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
     setUiPrefs(`tabela:${prefsKey}`, { colVis, sorts })
   }, [colVis, sorts, prefsKey])
 
-  const { paises, anos } = useMemo(() => {
-    const ps = new Map<string, string>(); const as = new Set<string>()
-    for (const r of rows) { ps.set(r.coin.pais_codigo, r.coin.pais_nome); const a = anoNum(r); if (a) as.add(a) }
-    return {
-      paises: [...ps.entries()].sort((a, b) => a[1].localeCompare(b[1])),
-      anos: [...as].sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0)),
+  // Colunas com filtro (todas excepto as contínuas de edição).
+  const SEM_FILTRO = new Set<Col>(['qtd', 'valor', 'fotos', 'moeda', 'comemoracao'])
+  // valores distintos por coluna (para as opções do dropdown de filtro)
+  const valoresPorCol = useMemo(() => {
+    const m = new Map<Col, string[]>()
+    const sets = new Map<Col, Set<string>>()
+    for (const r of rows) {
+      for (const c of COLUNAS) {
+        if (SEM_FILTRO.has(c.key)) continue
+        const v = String(valOf(r, c.key) ?? '').trim()
+        if (!v) continue
+        const s = sets.get(c.key) ?? new Set<string>(); s.add(v); sets.set(c.key, s)
+      }
     }
+    for (const [k, s] of sets) m.set(k, [...s].sort((a, b) => a.localeCompare(b, 'pt', { numeric: true })))
+    return m
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows])
 
   const filtradas = useMemo(() => rows.filter((r) => {
-    if (filtroPais && r.coin.pais_codigo !== filtroPais) return false
-    if (filtroTipo === 'circulacao' && r.coin.comemorativa) return false
-    if (filtroTipo === 'comemorativa' && !r.coin.comemorativa) return false
-    if (filtroAno && anoNum(r) !== filtroAno) return false
-    if (filtroEstado && estadoDe(r.item) !== filtroEstado) return false
+    for (const [col, val] of Object.entries(filtros)) {
+      if (!val) continue
+      if (String(valOf(r, col as Col) ?? '') !== val) return false
+    }
     return true
-  }), [rows, filtroPais, filtroTipo, filtroAno, filtroEstado])
+  }), [rows, filtros])
 
   const ordenadas = useMemo(() => {
     if (sorts.length === 0) return [...filtradas].sort(ordemNatural)
@@ -228,7 +237,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
     })
   }, [filtradas, sorts])
 
-  useEffect(() => { setPagina(0) }, [filtroPais, filtroTipo, filtroAno, filtroEstado, sorts])
+  useEffect(() => { setPagina(0) }, [filtros, sorts])
   useEffect(() => {
     if (!filtroAberto) return
     function fora(e: MouseEvent) {
@@ -247,7 +256,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   const totalSet   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'set').length, [filtradas])
   const totalCad   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'caderneta').length, [filtradas])
   const totalFalta = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'naotem').length, [filtradas])
-  const temFiltro = filtroPais || filtroTipo || filtroAno || filtroEstado
+  const temFiltro = Object.values(filtros).some(Boolean)
 
   // clique no cabeçalho: ordena por essa coluna (1 nível; alterna asc/desc)
   function ordenarPor(col: Col) {
@@ -259,15 +268,16 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   }
   const sortDe = (col: Col): SortRule | undefined => sorts.find((s) => s.col === col)
 
-  // filtro embutido no cabeçalho (só algumas colunas têm)
+  // filtro embutido no cabeçalho — genérico, qualquer coluna com valores
+  const ESTADO_LABEL: Record<string, string> = { set: 'Set', caderneta: 'Caderneta', naotem: 'Não tem' }
   interface FiltroCol { valor: string; set: (v: string) => void; opcoes: { v: string; label: string }[] }
   function filtroDaCol(key: Col): FiltroCol | null {
-    switch (key) {
-      case 'pais': return { valor: filtroPais, set: setFiltroPais, opcoes: [{ v: '', label: 'Todos os países' }, ...paises.map(([c, n]) => ({ v: c, label: n }))] }
-      case 'tipo': return { valor: filtroTipo, set: (v) => setFiltroTipo(v as typeof filtroTipo), opcoes: [{ v: '', label: 'Todos' }, { v: 'circulacao', label: 'Circulação' }, { v: 'comemorativa', label: 'Comemorativa' }] }
-      case 'ano': return { valor: filtroAno, set: setFiltroAno, opcoes: [{ v: '', label: 'Todos os anos' }, ...anos.map((a) => ({ v: a, label: a }))] }
-      case 'estado': return { valor: filtroEstado, set: (v) => setFiltroEstado(v as typeof filtroEstado), opcoes: [{ v: '', label: 'Todos' }, { v: 'set', label: 'Set' }, { v: 'caderneta', label: 'Caderneta' }, { v: 'naotem', label: 'Não tem' }] }
-      default: return null
+    const valores = valoresPorCol.get(key)
+    if (!valores || valores.length < 2) return null
+    return {
+      valor: filtros[key] ?? '',
+      set: (v) => setFiltros((f) => ({ ...f, [key]: v })),
+      opcoes: [{ v: '', label: 'Todos' }, ...valores.map((v) => ({ v, label: key === 'estado' ? (ESTADO_LABEL[v] ?? v) : v }))],
     }
   }
 
@@ -276,6 +286,12 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
     switch (key) {
       case 'pais': return <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><Flag code={r.coin.pais_codigo} size={14} />{r.coin.pais_nome}</span>
       case 'tipo': return <span className="text-mp-ink-soft">{r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')}</span>
+      case 'fotos': return (
+        <span className="flex shrink-0 gap-0.5">
+          <Disco url={r.coin.anverso_img} />
+          <Disco url={r.coin.reverso_img} />
+        </span>
+      )
       case 'moeda': return (
         <span className="flex items-center gap-2">
           <span className="flex shrink-0 gap-0.5">
@@ -342,7 +358,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
             <b className="font-serif text-mp-gold-strong">{eur(totalValor)}</b>
           </span>
           {temFiltro && (
-            <button onClick={() => { setFiltroPais(''); setFiltroTipo(''); setFiltroAno(''); setFiltroEstado('') }}
+            <button onClick={() => setFiltros({})}
               className="text-xs text-mp-ink-soft underline hover:text-mp-ink whitespace-nowrap">limpar</button>
           )}
           <button onClick={() => setPainel(painel === 'cols' ? null : 'cols')}
