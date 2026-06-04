@@ -59,7 +59,7 @@ function classificar(c) {
   if (c.familia === 'euro_comemorativa') return ['Euro · Comemorativas 2€', 42]
   if (c.familia === 'euro_colecao') {
     const cur = c.maktun_raw?.currency?.title || ''
-    if (/ecu/i.test(cur)) return ['ECU (pré-euro)', 38]
+    if (/ecu/i.test(cur)) return ['ECU (pré-euro)', 40]
     return ['Euro · Coleção', 43]
   }
 
@@ -68,7 +68,15 @@ function classificar(c) {
   if (ano < 1911) { const r = reinadoPorAno(ano, t); return r ? [r[1], r[0]] : ['Monarquia (s/ reinado)', 33] }
   if (ano < 1926) return ['1ª República', 34]
   if (ano < 1974) return ['Estado Novo', 35]
-  if (ano < 2002) return ['República · Escudo', 36]
+  // 2ª República (Escudo): separar circulação corrente da coleção, por metal.
+  if (ano < 2002) {
+    const m = (c.titulo || '').match(/\b(Gold|Silver|Palladium|Platinum)\b/i)
+    const metal = m ? m[1].toLowerCase() : ''
+    if (metal === 'gold') return ['Escudo · Coleção Ouro', 38]
+    if (metal === 'palladium' || metal === 'platinum') return ['Escudo · Coleção Paládio/Platina', 39]
+    if (metal === 'silver') return ['Escudo · Coleção Prata', 37]
+    return ['Escudo · Circulação', 36]
+  }
   return ['Euro · Coleção', 43]
 }
 

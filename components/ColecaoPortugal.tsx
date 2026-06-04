@@ -66,27 +66,35 @@ export default function ColecaoPortugal() {
     if (row) setFicha(row)
   }
 
+  // Substitui (otimista) o exemplar de um (issue, formato) na coleção local.
+  function aplicaCol(saved: CollectionItem) {
+    setCol((prev) => [
+      ...prev.filter((i) => !(i.catalog_issue_id === saved.catalog_issue_id && i.formato_posse === saved.formato_posse)),
+      saved,
+    ])
+  }
+
   // Tabela: alterna formato S/C/B (preserva grau/valor).
   async function alterarFormato(row: DisplayRow, formato: FormatoColecao, ativo: boolean) {
     const ex = row.itens.find((i) => i.formato_posse === formato)
-    await upsertCollectionItem({
+    const saved = await upsertCollectionItem({
       catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
       quantidade: ativo ? Math.max(1, ex?.quantidade ?? 1) : 0, formatoPosse: formato,
       casaMoeda: row.item?.casa_moeda ?? null, grau: ex?.grau ?? row.item?.grau ?? null,
       valorBase: ex?.valor_base ?? row.item?.valor_base ?? null, foto: ex?.foto1 ?? row.item?.foto1 ?? null,
     })
-    setCol(await getCollection())
+    aplicaCol(saved)
   }
   async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
     const alvo = row.item
     const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'set'
-    await upsertCollectionItem({
+    const saved = await upsertCollectionItem({
       catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
       quantidade: Math.max(0, novaQtd), formatoPosse: formato,
       casaMoeda: alvo?.casa_moeda ?? null, grau: alvo?.grau ?? null,
       valorBase: alvo?.valor_base ?? null, foto: alvo?.foto1 ?? null,
     })
-    setCol(await getCollection())
+    aplicaCol(saved)
   }
 
   async function guardar(input: CoinSheetSave) {

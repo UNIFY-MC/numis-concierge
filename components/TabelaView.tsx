@@ -83,6 +83,39 @@ const selectCls = 'h-8 rounded-lg border border-mp-border bg-mp-surface px-2 tex
 // trava o browser. Filtros/ordenação/somas continuam sobre o conjunto completo.
 const PAGINA_TAM = 200
 
+// Stepper de quantidade com estado de texto local: permite digitar/apagar
+// livremente (o input não "salta" de volta), só grava no blur ou Enter. Os
+// botões −/+ gravam logo.
+function StepperQtd({ qtd, onChange }: { qtd: number; onChange: (n: number) => void }) {
+  const [txt, setTxt] = useState(String(qtd))
+  useEffect(() => { setTxt(String(qtd)) }, [qtd])
+  const commit = (v: string) => { const n = Math.max(0, parseInt(v, 10) || 0); if (n !== qtd) onChange(n) }
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <button
+        onClick={() => onChange(Math.max(0, qtd - 1))}
+        disabled={qtd <= 0}
+        className="h-6 w-6 rounded border border-mp-border leading-none text-mp-ink-soft hover:bg-mp-surface-muted disabled:opacity-30"
+        aria-label="Menos um"
+      >−</button>
+      <input
+        type="number"
+        min={0}
+        value={txt}
+        onChange={(e) => setTxt(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        className="w-12 rounded border border-mp-border bg-mp-surface px-1 py-0.5 text-center text-sm outline-none focus:border-mp-gold"
+      />
+      <button
+        onClick={() => onChange(qtd + 1)}
+        className="h-6 w-6 rounded border border-mp-border leading-none text-mp-ink-soft hover:bg-mp-surface-muted"
+        aria-label="Mais um"
+      >+</button>
+    </div>
+  )
+}
+
 export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato }: TabelaViewProps) {
   // null = ordem natural por defeito (país›casa›tipo›ano›face); clicar numa coluna ordena por ela.
   const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 } | null>(null)
@@ -314,26 +347,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                     <EstadoSelector formatos={formatosComMoeda(r.itens)} onChange={(f, a) => onFormato(r, f, a)} />
                   </td>
                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => onQuantidade(r, (r.item?.quantidade ?? 0) - 1)}
-                        disabled={(r.item?.quantidade ?? 0) <= 0}
-                        className="w-6 h-6 rounded border border-mp-border text-mp-ink-soft hover:bg-mp-surface-muted disabled:opacity-30 leading-none"
-                        aria-label="Menos um"
-                      >−</button>
-                      <input
-                        type="number"
-                        min={0}
-                        value={r.item?.quantidade ?? 0}
-                        onChange={(e) => onQuantidade(r, parseInt(e.target.value, 10) || 0)}
-                        className="w-12 text-center bg-mp-surface border border-mp-border rounded px-1 py-0.5 text-sm outline-none focus:border-mp-gold"
-                      />
-                      <button
-                        onClick={() => onQuantidade(r, (r.item?.quantidade ?? 0) + 1)}
-                        className="w-6 h-6 rounded border border-mp-border text-mp-ink-soft hover:bg-mp-surface-muted leading-none"
-                        aria-label="Mais um"
-                      >+</button>
-                    </div>
+                    <StepperQtd qtd={r.item?.quantidade ?? 0} onChange={(n) => onQuantidade(r, n)} />
                   </td>
                   <td className="px-3 py-1.5 text-right text-mp-gold-strong">
                     {r.itens.length === 0 ? '—' : eur(valorColecao(r.coin, r.itens))}

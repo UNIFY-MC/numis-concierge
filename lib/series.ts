@@ -11,8 +11,8 @@ export interface Era {
 
 export const ERAS: Era[] = [
   { chave: 'monarquia', label: 'Monarquia', icone: '👑', min: 1, max: 33 },
-  { chave: 'escudo', label: 'República · Escudo', icone: '🏛️', min: 34, max: 36 },
-  { chave: 'euro', label: 'Euro', icone: '⭐', min: 37, max: 43 },
+  { chave: 'escudo', label: 'República · Escudo', icone: '🏛️', min: 34, max: 39 },
+  { chave: 'euro', label: 'Euro', icone: '⭐', min: 40, max: 46 },
   { chave: 'ilhas', label: 'Ilhas & Ultramar', icone: '🏝️', min: 50, max: 52 },
   { chave: 'fichas', label: 'Fichas & Tokens', icone: '🎟️', min: 60, max: 60 },
   { chave: 'outras', label: 'Por classificar', icone: '❓', min: 90, max: 99 },
