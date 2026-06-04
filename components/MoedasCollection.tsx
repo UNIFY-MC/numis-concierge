@@ -431,6 +431,7 @@ export default function MoedasCollection() {
           onImprimir={() => setImprimir({ tipo: 'geral' })}
           onQuantidade={alterarQuantidade}
           onFormato={alterarFormato}
+          prefsKey="moedas"
         />
       ) : paisAberto ? (
         <PaisDetalhe

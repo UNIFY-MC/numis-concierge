@@ -242,6 +242,7 @@ export default function ColecaoPortugal() {
               onImprimir={() => {}}
               onQuantidade={alterarQuantidade}
               onFormato={alterarFormato}
+              prefsKey="colecoes-pt"
             />
           ) : (
             <ListaMoedas coins={coinsDaSerie} tenho={tenho} onAbrir={abrirFicha} />

@@ -112,6 +112,20 @@ export async function getIssuesForCoin(catalogCoinId: string): Promise<CatalogIs
   return data ?? []
 }
 
+// Preferências de UI (ex. colunas/ordenação da tabela). Sem localStorage — vive
+// na BD (1 linha por chave; global, chega para uso pessoal).
+export async function getUiPrefs<T>(chave: string): Promise<T | null> {
+  const { data, error } = await supabase.from('ui_prefs').select('prefs').eq('chave', chave).maybeSingle()
+  if (error) return null
+  return (data?.prefs as T) ?? null
+}
+export async function setUiPrefs(chave: string, prefs: unknown): Promise<void> {
+  // upsert manual (a anon não tem política de UPSERT garantida): tenta update, senão insert.
+  const { data } = await supabase.from('ui_prefs').select('chave').eq('chave', chave).maybeSingle()
+  if (data) await supabase.from('ui_prefs').update({ prefs, updated_at: new Date().toISOString() }).eq('chave', chave)
+  else await supabase.from('ui_prefs').insert({ chave, prefs })
+}
+
 export async function getCollection(): Promise<CollectionItem[]> {
   const PAGE = 1000
   let from = 0
