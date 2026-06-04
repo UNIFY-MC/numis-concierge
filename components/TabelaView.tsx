@@ -112,7 +112,7 @@ function valOf(r: DisplayRow, col: Col): string | number {
 // Disco pequeno de uma face (anverso/reverso) na tabela.
 function Disco({ url }: { url: string | null }) {
   return (
-    <span className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-1 ring-mp-border">
+    <span className="grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-1 ring-mp-border">
       {url ? <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" /> : <span className="text-[9px] text-mp-coin-empty">⊚</span>}
     </span>
   )
@@ -310,7 +310,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
       case 'km': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.km_ref || '—'}</span>
       case 'schon': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.schon_ref || '—'}</span>
       case 'numista': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.numista_id || '—'}</span>
-      case 'face': return r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'
+      case 'face': return <span className="whitespace-nowrap">{r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}</span>
       case 'ano': return anoNum(r) || r.issue.ano
       case 'casa': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{casaEmissorCurto(r)}</span>
       case 'mintmark': return <span className="text-mp-ink-soft">{r.coin.mintmark || r.issue.mintmark_variante || '—'}</span>
@@ -385,7 +385,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
         </div>
       )}
 
-      <div className="max-h-[68vh] overflow-auto rounded-2xl border border-mp-border bg-mp-surface">
+      <div className="max-h-[82vh] overflow-auto rounded-2xl border border-mp-border bg-mp-surface">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-mp-surface-muted text-left text-[11px] uppercase tracking-wide text-mp-ink-soft">
             <tr>
@@ -394,7 +394,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                 const s = sortDe(key)
                 const filtro = filtroDaCol(key)
                 return (
-                  <th key={key} className={'whitespace-nowrap px-3 py-2 font-semibold ' + (meta.right ? 'text-right' : '')}>
+                  <th key={key} className={'whitespace-nowrap px-2.5 py-1.5 font-semibold ' + (meta.right ? 'text-right' : '')}>
                     <span className="inline-flex items-center gap-1">
                       <button onClick={() => ordenarPor(key)} className="cursor-pointer select-none hover:text-mp-ink">
                         {meta.label}{s ? (s.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}
@@ -430,7 +430,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                 {colVis.map((key) => {
                   const meta = COLUNAS.find((c) => c.key === key)!
                   return (
-                    <td key={key} className={'px-3 py-1.5 ' + (meta.right ? 'text-right ' : '') + (key === 'moeda' ? 'max-w-[260px]' : '')}>
+                    <td key={key} className={'px-2.5 py-1 ' + (meta.right ? 'text-right ' : '') + (key === 'moeda' ? 'max-w-[260px]' : '')}>
                       {celula(r, key)}
                     </td>
                   )

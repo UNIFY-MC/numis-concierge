@@ -215,8 +215,11 @@ export default function ColecaoPortugal() {
 
   if (loading) return <div className="p-8 text-mp-ink-faint">A carregar a coleção…</div>
 
+  // tabela usa o ecrã todo (mais largura); grelha de cartões mantém-se centrada
+  const ecraCheio = tabelaAberta && (verTodos || vista === 'tabela')
+
   return (
-    <div className="mx-auto max-w-[92rem] px-6 py-6 lg:px-10">
+    <div className={'mx-auto py-4 ' + (ecraCheio ? 'max-w-none px-4' : 'max-w-[92rem] px-6 lg:px-10')}>
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-semibold">
