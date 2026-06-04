@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { getCatalogCoins, getCollection } from '@/lib/catalog'
+import { getCatalogPais, getCollection } from '@/lib/catalog'
 import { ERAS, eraDe } from '@/lib/series'
 import type { CatalogCoin } from '@/lib/types'
 
@@ -15,9 +15,9 @@ export default function ColecaoPortugal() {
   const [serieSel, setSerieSel] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([getCatalogCoins(), getCollection()])
+    Promise.all([getCatalogPais('pt'), getCollection()])
       .then(([cs, col]) => {
-        setCoins(cs.filter((c) => c.pais_codigo === 'pt'))
+        setCoins(cs)
         const t = new Set<string>()
         for (const it of col) if (it.quantidade > 0 && it.catalog_coin_id) t.add(it.catalog_coin_id)
         setTenho(t)

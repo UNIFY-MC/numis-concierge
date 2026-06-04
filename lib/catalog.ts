@@ -1,6 +1,15 @@
 import { supabase } from './supabase'
 import type { CatalogCoin, CatalogIssue, CollectionItem } from './types'
 
+// Colunas do catálogo SEM o maktun_raw (jsonb pesado, ~uso interno): com 8900+
+// moedas, trazer o raw são dezenas de MB e trava a UI. Listamos o que a app usa.
+const COLS_COIN =
+  'id, titulo, categoria, familia, serie, serie_ord, moeda_hist, ano_inicio, ano_fim, ' +
+  'pais_codigo, pais_nome, valor_facial, unidade, moeda_codigo, denominacao, tipo_emissao, ' +
+  'comemorativa, tema, composicao, metal, diametro_mm, espessura_mm, peso_g, pureza, forma, ' +
+  'anverso_desc, reverso_desc, orla_tipo, orla_desc, casa_moeda, mintmark, km_ref, schon_ref, ' +
+  'numista_id, anverso_img, reverso_img, face_comum, demonetizada, html_rank, created_at, updated_at'
+
 export async function getCatalogCoins(): Promise<CatalogCoin[]> {
   // catalog_coins passou os 1000 (limite do PostgREST) — paginar a leitura.
   const PAGE = 1000
@@ -9,12 +18,33 @@ export async function getCatalogCoins(): Promise<CatalogCoin[]> {
   for (;;) {
     const { data, error } = await supabase
       .from('catalog_coins')
-      .select('*')
+      .select(COLS_COIN)
       .order('pais_nome', { ascending: true })
       .range(from, from + PAGE - 1)
     if (error) throw error
     if (!data || data.length === 0) break
-    all.push(...data)
+    all.push(...(data as unknown as CatalogCoin[]))
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all
+}
+
+// Catálogo de um país (leve, sem maktun_raw) — para a vista de coleção por série.
+export async function getCatalogPais(paisCodigo: string): Promise<CatalogCoin[]> {
+  const PAGE = 1000
+  let from = 0
+  const all: CatalogCoin[] = []
+  for (;;) {
+    const { data, error } = await supabase
+      .from('catalog_coins')
+      .select(COLS_COIN)
+      .eq('pais_codigo', paisCodigo)
+      .order('serie_ord', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    all.push(...(data as unknown as CatalogCoin[]))
     if (data.length < PAGE) break
     from += PAGE
   }
