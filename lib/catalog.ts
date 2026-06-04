@@ -154,6 +154,7 @@ export interface CollectionUpsert {
   valorBase?: number | null
   foto?: string | null
   notaPrivada?: string | null
+  defeito?: string | null  // erro/variante de cunhagem (eixo deslocado, off-center…)
 }
 
 // Cria ou actualiza o exemplar de uma issue. Nunca apaga (ver dívida técnica
@@ -177,6 +178,7 @@ export async function upsertCollectionItem(input: CollectionUpsert): Promise<Col
     valor_base: input.valorBase ?? null,
     foto1: input.foto ?? null,
     nota_privada: input.notaPrivada ?? null,
+    defecto: input.defeito ?? null,
   }
 
   if (existing) {

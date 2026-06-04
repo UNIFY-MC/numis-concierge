@@ -117,7 +117,7 @@ export default function ColecaoPortugal() {
   async function guardar(input: CoinSheetSave) {
     if (!ficha) return
     const { coin, issue } = ficha
-    const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota }
+    const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota, defeito: input.defeito }
     for (const f of input.formatos) {
       await upsertCollectionItem({
         catalogCoinId: coin.id, catalogIssueId: issue.id,

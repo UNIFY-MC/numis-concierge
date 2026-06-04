@@ -13,6 +13,7 @@ export interface CoinSheetSave {
   casaMoeda: string | null
   foto: string | null
   nota: string | null
+  defeito: string | null
   aplicarTodos: boolean
 }
 
@@ -54,6 +55,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
   const [casaMoeda, setCasaMoeda] = useState(row.item?.casa_moeda ?? row.issue.casa_moeda ?? '')
   const [foto, setFoto] = useState(row.item?.foto1 ?? '')
   const [nota, setNota] = useState(row.item?.nota_privada ?? row.issue.html_obs ?? '')
+  const [defeito, setDefeito] = useState(row.item?.defecto ?? '')
   const [aplicarTodos, setAplicarTodos] = useState(false)
   const [saving, setSaving] = useState(false)
   const mostraCasa = row.coin.pais_codigo === 'de'
@@ -107,6 +109,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         casaMoeda: casaMoeda || null,
         foto: foto.trim() || null,
         nota: nota.trim() || null,
+        defeito: defeito.trim() || null,
         aplicarTodos,
       })
       onClose()
@@ -257,6 +260,11 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           <span className="text-xs text-mp-ink-soft">Valor real estimado (soma dos formatos)</span>
           <span className="font-serif text-xl font-semibold text-mp-gold-strong">{eur(estimado)}</span>
         </div>
+
+        <label className="block mb-4">
+          <span className={lbl}>Erro / variante de cunhagem</span>
+          <input value={defeito} onChange={(e) => setDefeito(e.target.value)} placeholder="ex.: eixo deslocado, off-center, cunho duplo, mula…" className={inp} />
+        </label>
 
         <label className="block mb-4">
           <span className={lbl}>Observações</span>

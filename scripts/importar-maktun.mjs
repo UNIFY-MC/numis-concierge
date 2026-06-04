@@ -57,6 +57,10 @@ const PAISES = {
   it: { id: 413, nome: 'Italia' }, lv: { id: 444, nome: 'Letónia' }, lt: { id: 438, nome: 'Lituania' },
   lu: { id: 414, nome: 'Luxemburgo' }, mt: { id: 423, nome: 'Malta' }, mc: { id: 415, nome: 'Mónaco' },
   pt: { id: 417, nome: 'Portugal' }, sm: { id: 418, nome: 'San Marino' }, va: { id: 410, nome: 'Vaticano' },
+  // Ex-colónias portuguesas (histórico completo da Maktun)
+  ao: { id: 588, nome: 'Angola' }, br: { id: 455, nome: 'Brasil' }, cv: { id: 716, nome: 'Cabo Verde' },
+  gw: { id: 611, nome: 'Guiné-Bissau' }, inp: { id: 618, nome: 'Índia Portuguesa' }, mo: { id: 513, nome: 'Macau' },
+  mz: { id: 570, nome: 'Moçambique' }, st: { id: 614, nome: 'São Tomé e Príncipe' }, tl: { id: 717, nome: 'Timor' },
 }
 const idToCodigo = Object.fromEntries(Object.entries(PAISES).map(([c, v]) => [v.id, c]))
 

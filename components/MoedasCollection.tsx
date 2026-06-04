@@ -208,7 +208,7 @@ export default function MoedasCollection() {
   async function guardar(input: CoinSheetSave) {
     if (!selecionada) return
     const { coin, issue } = selecionada
-    const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota }
+    const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota, defeito: input.defeito }
     const saves: CollectionItem[] = []
     // Formatos marcados: gravar exemplar (qty ≥ 1, grau/valor próprios).
     for (const f of input.formatos) {
