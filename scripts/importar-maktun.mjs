@@ -112,11 +112,18 @@ const ehEcu = (ct) => /ecu/i.test(moedaDe(ct))
 const ehEuroCorrente = (ct) => ehEuro(ct) && Number(ct.formatted_nominal) <= 2   // circulação + 2€ comem (já temos)
 const ehColecaoEuro = (ct) => ehEcu(ct) || (ehEuro(ct) && Number(ct.formatted_nominal) > 2)
 
+// Facial em euros, ignorando lixo da Maktun (ex. sets especiais com
+// formatted_nominal=1e15 e nominal vazio) — nenhum facial euro real passa 100k.
+const facialSeguro = (ct) => {
+  const v = Number(ct.formatted_nominal)
+  return Number.isFinite(v) && v > 0 && v <= 1e7 ? v : null
+}
+
 function mapear(ct, codigo, nome) {
   const euro = ehEuro(ct)
   return {
     titulo: ct.combined_title || ct.title, pais_codigo: codigo, pais_nome: nome,
-    denominacao: ct.title, valor_facial: euro ? Number(ct.formatted_nominal) : null,
+    denominacao: ct.title, valor_facial: euro ? facialSeguro(ct) : null,
     moeda_hist: euro ? null : (moedaDe(ct) || null), comemorativa: false,
     familia: euro ? 'euro_colecao' : 'historico',
     km_ref: ct.km_code || null, peso_g: ct.weight ?? null, diametro_mm: ct.diameter ?? null,
