@@ -31,6 +31,19 @@ const args = process.argv.slice(2)
 const PROBE = args.includes('--probe')
 const APPLY = args.includes('--apply')
 const SO_EURO = args.includes('--euro')
+// --nominal: para países cujo catálogo é enorme demais para get_cointypes inteiro
+// (França: ~28k → 504). A Maktun filtra por denominação: get_cointypes aceita
+// {country_id, currency_id, nominal:"<texto>"}. Pedimos só a COLEÇÃO euro
+// (currency Euro 1713, nominais > 2 e frações de coleção), só Coins (is_token=false).
+// A circulação (1c–2€) e as comemorativas 2€ NÃO se pedem — já as temos da Numista/BCE.
+const POR_NOMINAL = args.includes('--nominal')
+const CURRENCY_EURO = 1713
+const NOMINAIS_COLECAO_EURO = [
+  '1/4', '1 1/2', '3', '3.33', '3.88', '4', '5', '6', '7', '7.5', '7.50', '8',
+  '10', '11', '12', '12.5', '12 1/2', '14', '15', '19.18', '20', '25', '30', '35',
+  '40', '50', '75', '100', '150', '200', '250', '300', '400', '500', '1000',
+  '2.000', '2500', '5000', '5.000', '10000',
+]
 const pa = args.indexOf('--pais')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -70,6 +83,29 @@ async function cointypes(countryId) {
   return [...byId.values()]
 }
 
+// Pede a coleção euro por denominação (contorna o 504 dos catálogos gigantes).
+async function pedirNominal(countryId, nominal) {
+  for (let t = 0; t < 4; t++) {
+    const r = await fetch(`${BASE}/get_cointypes/`, {
+      method: 'POST', headers: H,
+      body: JSON.stringify({ country_id: countryId, currency_id: CURRENCY_EURO, nominal }),
+    })
+    if (r.ok) { const j = await r.json(); return j.cointypes || [] }
+    if (r.status >= 500 || r.status === 429) { await sleep(6000 * (t + 1)); continue }
+    throw new Error(`get_cointypes ${countryId} nominal ${nominal}: ${r.status}`)
+  }
+  return []
+}
+async function cointypesPorNominal(countryId) {
+  const byId = new Map()
+  for (const n of NOMINAIS_COLECAO_EURO) {
+    const list = await pedirNominal(countryId, n)
+    for (const ct of list) if (!ct.is_token) byId.set(ct.id, ct)  // só Coins, não Tokens
+    await sleep(450)
+  }
+  return [...byId.values()]
+}
+
 const moedaDe = (ct) => ct.currency?.title || ''
 const ehEuro = (ct) => /euro/i.test(moedaDe(ct))
 const ehEcu = (ct) => /ecu/i.test(moedaDe(ct))
@@ -104,10 +140,11 @@ async function main() {
   const falhados = []
   for (const a of alvos) {
     let list
-    try { list = await cointypes(a.id) }
+    try { list = POR_NOMINAL ? await cointypesPorNominal(a.id) : await cointypes(a.id) }
     catch (e) { console.warn(`⚠️ ${a.codigo} #${a.id}: ${e.message} — saltado`); falhados.push(a.codigo); continue }
     const filtradas = list.filter((ct) => {
       if (temMaktun.has(ct.id)) return false
+      if (POR_NOMINAL) return !ct.is_token   // já vem só coleção euro (currency 1713) sem tokens
       if (SO_EURO) return ehColecaoEuro(ct)
       return !ehEuroCorrente(ct)
     })
