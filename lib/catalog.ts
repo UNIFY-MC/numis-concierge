@@ -80,6 +80,28 @@ export async function getCatalogIssues(): Promise<CatalogIssue[]> {
   return all
 }
 
+// Issues de um país (via inner join ao catalog_coins) — para a vista de coleção
+// por série poder montar a tabela editável sem carregar as issues do mundo todo.
+export async function getIssuesPais(paisCodigo: string): Promise<CatalogIssue[]> {
+  const PAGE = 1000
+  let from = 0
+  const all: CatalogIssue[] = []
+  for (;;) {
+    const { data, error } = await supabase
+      .from('catalog_issues')
+      .select('*, catalog_coins!inner(pais_codigo)')
+      .eq('catalog_coins.pais_codigo', paisCodigo)
+      .order('ano_gregoriano', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    all.push(...(data as unknown as CatalogIssue[]))
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all
+}
+
 export async function getIssuesForCoin(catalogCoinId: string): Promise<CatalogIssue[]> {
   const { data, error } = await supabase
     .from('catalog_issues')

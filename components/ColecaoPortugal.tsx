@@ -2,25 +2,29 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import {
-  getCatalogPais, getCollection, getIssuesForCoin,
+  getCatalogPais, getCollection, getIssuesPais,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
 import { ERAS, eraDe } from '@/lib/series'
 import { itemPrincipal } from '@/lib/types'
-import type { CatalogCoin, CollectionItem, DisplayRow } from '@/lib/types'
+import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao } from '@/lib/types'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
+import TabelaView from './TabelaView'
 import retratos from '@/lib/data/reis-retratos.json'
 
 const RETRATOS = retratos as Record<string, string>
+type Vista = 'lista' | 'tabela'
 
 // Coleção de Portugal organizada como a Colnect: Era → Série/Reinado → moedas.
 // Vista de catálogo (por tipo de moeda), com indicação do que se tem.
 export default function ColecaoPortugal() {
   const [coins, setCoins] = useState<CatalogCoin[]>([])
+  const [issues, setIssues] = useState<CatalogIssue[]>([])
   const [col, setCol] = useState<CollectionItem[]>([])
   const [loading, setLoading] = useState(true)
   const [eraSel, setEraSel] = useState('monarquia')
   const [serieSel, setSerieSel] = useState<string | null>(null)
+  const [vista, setVista] = useState<Vista>('lista')
   const [ficha, setFicha] = useState<DisplayRow | null>(null)
 
   const tenho = useMemo(() => {
@@ -30,18 +34,59 @@ export default function ColecaoPortugal() {
   }, [col])
 
   useEffect(() => {
-    Promise.all([getCatalogPais('pt'), getCollection()])
-      .then(([cs, c]) => { setCoins(cs); setCol(c) })
+    Promise.all([getCatalogPais('pt'), getIssuesPais('pt'), getCollection()])
+      .then(([cs, is, c]) => { setCoins(cs); setIssues(is); setCol(c) })
       .finally(() => setLoading(false))
   }, [])
 
-  // Abre a ficha de uma moeda: busca a sua issue principal + os exemplares que tens.
-  async function abrirFicha(coin: CatalogCoin) {
-    const issues = await getIssuesForCoin(coin.id)
-    const issue = issues[0]
-    if (!issue) return
-    const itens = col.filter((i) => i.catalog_issue_id === issue.id)
-    setFicha({ coin, issue, itens, item: itemPrincipal(itens) })
+  // Issue principal (1ª) de cada coin, e exemplares por issue.
+  const issueDeCoin = useMemo(() => {
+    const m = new Map<string, CatalogIssue>()
+    for (const i of issues) if (!m.has(i.catalog_coin_id)) m.set(i.catalog_coin_id, i)
+    return m
+  }, [issues])
+  const itensDeIssue = useMemo(() => {
+    const m = new Map<string, CollectionItem[]>()
+    for (const it of col) if (it.catalog_issue_id) {
+      const a = m.get(it.catalog_issue_id) ?? []; a.push(it); m.set(it.catalog_issue_id, a)
+    }
+    return m
+  }, [col])
+
+  // DisplayRow de uma coin (issue principal + exemplares).
+  function rowDe(coin: CatalogCoin): DisplayRow | null {
+    const issue = issueDeCoin.get(coin.id)
+    if (!issue) return null
+    const itens = itensDeIssue.get(issue.id) ?? []
+    return { coin, issue, itens, item: itemPrincipal(itens) }
+  }
+
+  function abrirFicha(coin: CatalogCoin) {
+    const row = rowDe(coin)
+    if (row) setFicha(row)
+  }
+
+  // Tabela: alterna formato S/C/B (preserva grau/valor).
+  async function alterarFormato(row: DisplayRow, formato: FormatoColecao, ativo: boolean) {
+    const ex = row.itens.find((i) => i.formato_posse === formato)
+    await upsertCollectionItem({
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: ativo ? Math.max(1, ex?.quantidade ?? 1) : 0, formatoPosse: formato,
+      casaMoeda: row.item?.casa_moeda ?? null, grau: ex?.grau ?? row.item?.grau ?? null,
+      valorBase: ex?.valor_base ?? row.item?.valor_base ?? null, foto: ex?.foto1 ?? row.item?.foto1 ?? null,
+    })
+    setCol(await getCollection())
+  }
+  async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
+    const alvo = row.item
+    const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'set'
+    await upsertCollectionItem({
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: Math.max(0, novaQtd), formatoPosse: formato,
+      casaMoeda: alvo?.casa_moeda ?? null, grau: alvo?.grau ?? null,
+      valorBase: alvo?.valor_base ?? null, foto: alvo?.foto1 ?? null,
+    })
+    setCol(await getCollection())
   }
 
   async function guardar(input: CoinSheetSave) {
@@ -106,6 +151,11 @@ export default function ColecaoPortugal() {
   }, [series, eraSel])
 
   const coinsDaSerie = serieSel ? (series.get(serieSel)?.coins ?? []) : []
+  const rowsDaSerie = useMemo(
+    () => coinsDaSerie.map(rowDe).filter((r): r is DisplayRow => r !== null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [coinsDaSerie, issueDeCoin, itensDeIssue],
+  )
 
   if (loading) return <div className="p-8 text-mp-ink-faint">A carregar a coleção…</div>
 
@@ -155,13 +205,40 @@ export default function ColecaoPortugal() {
       </div>
 
       {serieSel ? (
-        <ListaMoedas
-          serie={serieSel}
-          coins={coinsDaSerie}
-          tenho={tenho}
-          onVoltar={() => setSerieSel(null)}
-          onAbrir={abrirFicha}
-        />
+        <div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <button onClick={() => setSerieSel(null)} className="text-sm font-semibold text-mp-gold-strong hover:underline">
+              ← voltar às séries
+            </button>
+            <div className="inline-flex gap-1 rounded-xl border border-mp-border bg-mp-surface-muted p-1">
+              {(['lista', 'tabela'] as Vista[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setVista(v)}
+                  className={'rounded-lg px-3 py-1 text-sm font-semibold capitalize transition-colors ' +
+                    (vista === v ? 'bg-mp-gold text-white' : 'text-mp-ink-soft hover:text-mp-ink')}
+                >
+                  {v === 'lista' ? '▦ Lista' : '☰ Tabela'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <h2 className="mb-4 font-serif text-xl font-semibold">
+            {serieSel} <span className="text-sm font-normal text-mp-ink-faint">· {coinsDaSerie.length} tipos</span>
+          </h2>
+          {vista === 'tabela' ? (
+            <TabelaView
+              rows={rowsDaSerie}
+              onSelect={setFicha}
+              onExportar={() => {}}
+              onImprimir={() => {}}
+              onQuantidade={alterarQuantidade}
+              onFormato={alterarFormato}
+            />
+          ) : (
+            <ListaMoedas coins={coinsDaSerie} tenho={tenho} onAbrir={abrirFicha} />
+          )}
+        </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {seriesDaEra.map(([nome, v]) => (
@@ -248,16 +325,22 @@ function metalDe(c: CatalogCoin): string | null {
   return METAIS_PT[k] ?? m[1]
 }
 
-function ListaMoedas({ serie, coins, tenho, onVoltar, onAbrir }: {
-  serie: string; coins: CatalogCoin[]; tenho: Set<string>; onVoltar: () => void; onAbrir: (c: CatalogCoin) => void
+// Disco de uma face da moeda (anverso/reverso).
+function Face({ url }: { url: string | null }) {
+  return (
+    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-1 ring-mp-border">
+      {url ? <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+        : <span className="text-mp-coin-empty">⊚</span>}
+    </div>
+  )
+}
+
+function ListaMoedas({ coins, tenho, onAbrir }: {
+  coins: CatalogCoin[]; tenho: Set<string>; onAbrir: (c: CatalogCoin) => void
 }) {
   const ordenados = [...coins].sort((a, b) => (a.ano_inicio ?? 0) - (b.ano_inicio ?? 0))
   return (
     <div>
-      <button onClick={onVoltar} className="mb-4 text-sm font-semibold text-mp-gold-strong hover:underline">
-        ← voltar às séries
-      </button>
-      <h2 className="mb-4 font-serif text-xl font-semibold">{serie} <span className="text-sm font-normal text-mp-ink-faint">· {coins.length} tipos</span></h2>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {ordenados.map((c) => {
           const meu = tenho.has(c.id)
@@ -271,10 +354,10 @@ function ListaMoedas({ serie, coins, tenho, onVoltar, onAbrir }: {
                 (meu ? 'border-mp-set bg-mp-set-bg' : 'border-mp-border bg-mp-surface')
               }
             >
-              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-mp-surface-muted">
-                {c.anverso_img
-                  ? <img src={c.anverso_img} alt="" className="h-full w-full object-cover" />
-                  : <span className="text-mp-coin-empty">⊚</span>}
+              {/* frente e verso */}
+              <div className="flex shrink-0 gap-1">
+                <Face url={c.anverso_img} />
+                <Face url={c.reverso_img} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-mp-ink">{nomeCurto(c)}</p>
