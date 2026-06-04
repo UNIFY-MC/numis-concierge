@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { estadoDe, formatosComMoeda, FORMATOS_COLECAO } from '@/lib/types'
 import { valorColecao, eur } from '@/lib/valor'
 import { casaEmissor, casaEmissorCurto } from '@/lib/emissores'
+import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
 import { getUiPrefs, setUiPrefs } from '@/lib/catalog'
 import type { DisplayRow, FormatoColecao } from '@/lib/types'
 import type { Tag } from '@/lib/tags'
@@ -80,9 +81,9 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'pais':   return r.coin.pais_nome
     case 'tipo':   return r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')
     case 'fotos':  return ''
-    case 'moeda':  return r.coin.denominacao ?? r.coin.titulo ?? ''
-    case 'comemoracao': return r.coin.comemorativa ? (r.coin.tema ?? '') : ''
-    case 'denom':  return r.coin.denominacao ?? ''
+    case 'moeda':  return denomLimpa(r.coin)
+    case 'comemoracao': return temaLimpo(r.coin)
+    case 'denom':  return denomLimpa(r.coin)
     case 'serie':  return r.coin.serie ?? ''
     case 'metal':  return metalPt(r)
     case 'composicao': return r.coin.composicao ?? ''
@@ -298,11 +299,11 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
             <Disco url={r.coin.anverso_img} />
             <Disco url={r.coin.reverso_img} />
           </span>
-          <span className="truncate">{r.coin.denominacao || r.coin.titulo || '—'}</span>
+          <span className="truncate">{denomLimpa(r.coin) || '—'}</span>
         </span>
       )
-      case 'comemoracao': return <span className="truncate text-mp-ink-soft" title={r.coin.tema ?? ''}>{r.coin.comemorativa ? (r.coin.tema || '—') : '—'}</span>
-      case 'denom': return <span className="truncate">{r.coin.denominacao || '—'}</span>
+      case 'comemoracao': { const t = temaLimpo(r.coin); return <span className="truncate text-mp-ink-soft" title={t}>{t || '—'}</span> }
+      case 'denom': return <span className="truncate">{denomLimpa(r.coin) || '—'}</span>
       case 'serie': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{r.coin.serie || '—'}</span>
       case 'metal': return <span className="whitespace-nowrap text-mp-ink-soft">{metalPt(r) || '—'}</span>
       case 'composicao': return <span className="text-[11px] text-mp-ink-soft">{r.coin.composicao || '—'}</span>

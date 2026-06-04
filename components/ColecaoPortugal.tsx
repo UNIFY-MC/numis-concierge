@@ -7,6 +7,7 @@ import {
 } from '@/lib/catalog'
 import { ERAS, eraDe } from '@/lib/series'
 import { getTags, getCoinTags, type Tag } from '@/lib/tags'
+import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
 import { itemPrincipal } from '@/lib/types'
 import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao } from '@/lib/types'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
@@ -373,22 +374,11 @@ const METAIS_PT: Record<string, string> = {
   nickel: 'Níquel', bimetallic: 'Bimetálica', cupronickel: 'Cuproníquel', steel: 'Aço',
   'copper-nickel': 'Cuproníquel', billon: 'Bolhão', tin: 'Estanho', zinc: 'Zinco',
 }
-function traduzTermos(s: string): string {
-  return s
-    .replace(/\bNo Date\b\.?/gi, 'Sem data')
-    .replace(/\bPrince Regent\b/gi, 'Príncipe Regente')
-    .replace(/\bMule\b/gi, 'Híbrida')
-    .replace(/\bPattern\b/gi, 'Prova')
-    .replace(/\bEssai\b/gi, 'Ensaio')
-    .replace(/\bCountermark(ed)?\b/gi, 'Com contramarca')
-    .replace(/\bOverstrike\b/gi, 'Resselagem')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-}
-// Nome curto a partir do título Maktun ("Portugal; km…; 8 Escudos; (1726); Gold").
+// Nome curto: denominação limpa (sem o tema entre parênteses) + tema, em PT.
 function nomeCurto(c: CatalogCoin): string {
-  const base = c.tema || c.denominacao || (c.titulo || '').split(';').map((s) => s.trim())[2] || c.titulo || '—'
-  return traduzTermos(base)
+  const d = denomLimpa(c)
+  const t = temaLimpo(c)
+  return t && !d.includes(t) ? `${d} · ${t}` : (d || '—')
 }
 function metalDe(c: CatalogCoin): string | null {
   const m = (c.titulo || '').match(/\b(Gold|Silver|Copper-Nickel|Copper|Bronze|Brass|Nickel|Bi-?Metallic|Cupronickel|Billon|Steel|Tin|Zinc)\b/i)
