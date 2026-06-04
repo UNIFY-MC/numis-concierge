@@ -9,6 +9,9 @@ import { ERAS, eraDe } from '@/lib/series'
 import { itemPrincipal } from '@/lib/types'
 import type { CatalogCoin, CollectionItem, DisplayRow } from '@/lib/types'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
+import retratos from '@/lib/data/reis-retratos.json'
+
+const RETRATOS = retratos as Record<string, string>
 
 // Coleção de Portugal organizada como a Colnect: Era → Série/Reinado → moedas.
 // Vista de catálogo (por tipo de moeda), com indicação do que se tem.
@@ -79,13 +82,19 @@ export default function ColecaoPortugal() {
   const contEra = useMemo(() => {
     const tot = new Map<string, number>()
     const meus = new Map<string, number>()
+    const anoMin = new Map<string, number>()
+    const anoMax = new Map<string, number>()
     for (const c of coins) {
       const e = eraDe(c.serie_ord)
       if (!e) continue
       tot.set(e.chave, (tot.get(e.chave) ?? 0) + 1)
       if (tenho.has(c.id)) meus.set(e.chave, (meus.get(e.chave) ?? 0) + 1)
+      if (c.ano_inicio != null) {
+        anoMin.set(e.chave, Math.min(anoMin.get(e.chave) ?? Infinity, c.ano_inicio))
+        anoMax.set(e.chave, Math.max(anoMax.get(e.chave) ?? -Infinity, c.ano_inicio))
+      }
     }
-    return { tot, meus }
+    return { tot, meus, anoMin, anoMax }
   }, [coins, tenho])
 
   const seriesDaEra = useMemo(() => {
@@ -101,7 +110,7 @@ export default function ColecaoPortugal() {
   if (loading) return <div className="p-8 text-mp-ink-faint">A carregar a coleção…</div>
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
+    <div className="mx-auto max-w-[92rem] px-6 py-6 lg:px-10">
       <header className="mb-6">
         <h1 className="font-serif text-2xl font-semibold">
           Coleção de <span className="text-mp-gold">Portugal</span>
@@ -115,22 +124,31 @@ export default function ColecaoPortugal() {
       <div className="mb-6 flex flex-wrap gap-2">
         {ERAS.filter((e) => (contEra.tot.get(e.chave) ?? 0) > 0).map((e) => {
           const ativo = e.chave === eraSel
+          const min = contEra.anoMin.get(e.chave), max = contEra.anoMax.get(e.chave)
+          const anos = min != null ? (min === max ? `${min}` : `${min}–${max}`) : null
           return (
             <button
               key={e.chave}
               onClick={() => { setEraSel(e.chave); setSerieSel(null) }}
               className={
-                'flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-colors ' +
+                'flex flex-col items-start rounded-xl border px-3.5 py-2 transition-colors ' +
                 (ativo
                   ? 'border-mp-gold bg-mp-gold text-white shadow-sm'
                   : 'border-mp-border bg-mp-surface text-mp-ink-soft hover:text-mp-ink')
               }
             >
-              <span>{e.icone}</span>
-              <span>{e.label}</span>
-              <span className={'text-xs font-normal ' + (ativo ? 'text-white/80' : 'text-mp-ink-faint')}>
-                {contEra.meus.get(e.chave) ?? 0}/{contEra.tot.get(e.chave) ?? 0}
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <span>{e.icone}</span>
+                <span>{e.label}</span>
+                <span className={'text-xs font-normal ' + (ativo ? 'text-white/80' : 'text-mp-ink-faint')}>
+                  {contEra.meus.get(e.chave) ?? 0}/{contEra.tot.get(e.chave) ?? 0}
+                </span>
               </span>
+              {anos && (
+                <span className={'text-[10px] tabular-nums ' + (ativo ? 'text-white/70' : 'text-mp-ink-faint')}>
+                  {anos}
+                </span>
+              )}
             </button>
           )
         })}
@@ -145,7 +163,7 @@ export default function ColecaoPortugal() {
           onAbrir={abrirFicha}
         />
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {seriesDaEra.map(([nome, v]) => (
             <CartaoSerie
               key={nome}
@@ -175,34 +193,59 @@ function CartaoSerie({ nome, coins, tenho, onAbrir }: {
 }) {
   const meus = coins.filter((c) => tenho.has(c.id)).length
   const pct = coins.length ? Math.round((meus / coins.length) * 100) : 0
+  const retrato = RETRATOS[nome]
   return (
     <button
       onClick={onAbrir}
-      className="flex flex-col rounded-2xl border border-mp-border bg-mp-surface p-4 text-left transition-shadow hover:shadow-md"
+      className="group flex flex-col items-center rounded-2xl border border-mp-border bg-mp-surface p-4 text-center transition-shadow hover:shadow-md"
     >
+      {/* Retrato do rei (domínio público, Wikipédia) em estilo personagem */}
+      <div className="mb-3 grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-2 ring-mp-gold-soft">
+        {retrato
+          ? <img src={retrato} alt={nome} loading="lazy" className="h-full w-full object-cover object-top transition-transform group-hover:scale-105" />
+          : <span className="text-3xl text-mp-coin">⊚</span>}
+      </div>
       <span className="font-serif text-sm font-semibold leading-tight text-mp-ink">{nome}</span>
       <span className="mt-0.5 text-[11px] text-mp-ink-faint">{periodo(coins)}</span>
       <div className="mt-3 flex items-baseline gap-1">
         <span className="font-serif text-2xl font-semibold text-mp-gold-strong">{meus}</span>
         <span className="text-sm text-mp-ink-faint">/ {coins.length}</span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-mp-surface-muted">
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-mp-surface-muted">
         <div className="h-full rounded-full bg-mp-set" style={{ width: `${pct}%` }} />
       </div>
     </button>
   )
 }
 
+// Traduções para PT-PT dos termos ingleses que vêm da Maktun.
+const METAIS_PT: Record<string, string> = {
+  gold: 'Ouro', silver: 'Prata', copper: 'Cobre', bronze: 'Bronze', brass: 'Latão',
+  nickel: 'Níquel', bimetallic: 'Bimetálica', cupronickel: 'Cuproníquel', steel: 'Aço',
+  'copper-nickel': 'Cuproníquel', billon: 'Bolhão', tin: 'Estanho', zinc: 'Zinco',
+}
+function traduzTermos(s: string): string {
+  return s
+    .replace(/\bNo Date\b\.?/gi, 'Sem data')
+    .replace(/\bPrince Regent\b/gi, 'Príncipe Regente')
+    .replace(/\bMule\b/gi, 'Híbrida')
+    .replace(/\bPattern\b/gi, 'Prova')
+    .replace(/\bEssai\b/gi, 'Ensaio')
+    .replace(/\bCountermark(ed)?\b/gi, 'Com contramarca')
+    .replace(/\bOverstrike\b/gi, 'Resselagem')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
 // Nome curto a partir do título Maktun ("Portugal; km…; 8 Escudos; (1726); Gold").
 function nomeCurto(c: CatalogCoin): string {
-  if (c.tema) return c.tema
-  if (c.denominacao) return c.denominacao
-  const partes = (c.titulo || '').split(';').map((s) => s.trim())
-  return partes[2] || c.titulo || '—'
+  const base = c.tema || c.denominacao || (c.titulo || '').split(';').map((s) => s.trim())[2] || c.titulo || '—'
+  return traduzTermos(base)
 }
 function metalDe(c: CatalogCoin): string | null {
-  const m = (c.titulo || '').match(/\b(Gold|Silver|Copper|Bronze|Brass|Nickel|Bi-?Metallic|Cupronickel)\b/i)
-  return m ? m[1] : null
+  const m = (c.titulo || '').match(/\b(Gold|Silver|Copper-Nickel|Copper|Bronze|Brass|Nickel|Bi-?Metallic|Cupronickel|Billon|Steel|Tin|Zinc)\b/i)
+  if (!m) return null
+  const k = m[1].toLowerCase().replace('bi-metallic', 'bimetallic')
+  return METAIS_PT[k] ?? m[1]
 }
 
 function ListaMoedas({ serie, coins, tenho, onVoltar, onAbrir }: {
