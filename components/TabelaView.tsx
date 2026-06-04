@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { estadoDe, formatosComMoeda, FORMATOS_COLECAO } from '@/lib/types'
 import { valorColecao, eur } from '@/lib/valor'
 import { casaEmissor, casaEmissorCurto } from '@/lib/emissores'
@@ -10,7 +10,7 @@ import Flag from './Flag'
 interface TagsInfo { tags: Tag[]; coinTags: Map<string, Set<string>> }
 
 type Col =
-  | 'pais' | 'tipo' | 'moeda' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
+  | 'pais' | 'tipo' | 'moeda' | 'comemoracao' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
   | 'numista' | 'face' | 'ano' | 'casa' | 'mintmark' | 'peso' | 'diam' | 'espessura'
   | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'grau' | 'tiragem' | 'estado' | 'qtd' | 'valor'
 type Dir = 1 | -1
@@ -22,7 +22,8 @@ interface ColMeta { key: Col; label: string; right?: boolean }
 const COLUNAS: ColMeta[] = [
   { key: 'pais', label: 'País' },
   { key: 'tipo', label: 'Tipo' },
-  { key: 'moeda', label: 'Moeda / Comemoração' },
+  { key: 'moeda', label: 'Moeda' },
+  { key: 'comemoracao', label: 'Comemoração' },
   { key: 'denom', label: 'Denominação' },
   { key: 'serie', label: 'Série / Reinado' },
   { key: 'metal', label: 'Metal' },
@@ -48,7 +49,7 @@ const COLUNAS: ColMeta[] = [
   { key: 'valor', label: 'Valor', right: true },
 ]
 const LABEL = Object.fromEntries(COLUNAS.map((c) => [c.key, c.label])) as Record<Col, string>
-const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'metal', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'estado', 'qtd', 'valor']
+const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'estado', 'qtd', 'valor']
 
 const METAIS_PT: Record<string, string> = {
   gold: 'Ouro', silver: 'Prata', copper: 'Cobre', bronze: 'Bronze', brass: 'Latão',
@@ -77,7 +78,8 @@ function valOf(r: DisplayRow, col: Col): string | number {
   switch (col) {
     case 'pais':   return r.coin.pais_nome
     case 'tipo':   return r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')
-    case 'moeda':  return r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || '') : (r.coin.denominacao ?? '')
+    case 'moeda':  return r.coin.denominacao ?? r.coin.titulo ?? ''
+    case 'comemoracao': return r.coin.comemorativa ? (r.coin.tema ?? '') : ''
     case 'denom':  return r.coin.denominacao ?? ''
     case 'serie':  return r.coin.serie ?? ''
     case 'metal':  return metalPt(r)
@@ -164,9 +166,13 @@ interface TabelaViewProps {
   onFormato: (row: DisplayRow, formato: FormatoColecao, ativo: boolean) => void
   prefsKey?: string  // se definido, guarda colunas/ordenação na BD por esta chave
   tagsInfo?: TagsInfo  // coleções temáticas, para a coluna "Coleções"
+  titulo?: string      // mostrado na barra de ações (alinhado com os botões)
+  subtitulo?: string
+  onVoltar?: () => void
+  acaoExtra?: ReactNode  // ex. toggle Lista/Tabela, na mesma linha dos botões
 }
 
-export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato, prefsKey, tagsInfo }: TabelaViewProps) {
+export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato, prefsKey, tagsInfo, titulo, subtitulo, onVoltar, acaoExtra }: TabelaViewProps) {
   const [colVis, setColVis] = useState<Col[]>(COL_DEFAULT)
   const [sorts, setSorts] = useState<SortRule[]>([])
   const [painel, setPainel] = useState<'cols' | 'sort' | null>(null)
@@ -174,6 +180,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   const [filtroTipo, setFiltroTipo] = useState<'' | 'circulacao' | 'comemorativa'>('')
   const [filtroAno, setFiltroAno] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<'' | 'set' | 'caderneta' | 'naotem'>('')
+  const [filtroAberto, setFiltroAberto] = useState<Col | null>(null)
   const [pagina, setPagina] = useState(0)
   const carregou = useRef(false)
 
@@ -222,6 +229,15 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   }, [filtradas, sorts])
 
   useEffect(() => { setPagina(0) }, [filtroPais, filtroTipo, filtroAno, filtroEstado, sorts])
+  useEffect(() => {
+    if (!filtroAberto) return
+    function fora(e: MouseEvent) {
+      const el = e.target as HTMLElement
+      if (!el.closest('[data-filtro]')) setFiltroAberto(null)
+    }
+    document.addEventListener('mousedown', fora)
+    return () => document.removeEventListener('mousedown', fora)
+  }, [filtroAberto])
 
   const totalPaginas = Math.max(1, Math.ceil(ordenadas.length / PAGINA_TAM))
   const paginaSegura = Math.min(pagina, totalPaginas - 1)
@@ -243,6 +259,18 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   }
   const sortDe = (col: Col): SortRule | undefined => sorts.find((s) => s.col === col)
 
+  // filtro embutido no cabeçalho (só algumas colunas têm)
+  interface FiltroCol { valor: string; set: (v: string) => void; opcoes: { v: string; label: string }[] }
+  function filtroDaCol(key: Col): FiltroCol | null {
+    switch (key) {
+      case 'pais': return { valor: filtroPais, set: setFiltroPais, opcoes: [{ v: '', label: 'Todos os países' }, ...paises.map(([c, n]) => ({ v: c, label: n }))] }
+      case 'tipo': return { valor: filtroTipo, set: (v) => setFiltroTipo(v as typeof filtroTipo), opcoes: [{ v: '', label: 'Todos' }, { v: 'circulacao', label: 'Circulação' }, { v: 'comemorativa', label: 'Comemorativa' }] }
+      case 'ano': return { valor: filtroAno, set: setFiltroAno, opcoes: [{ v: '', label: 'Todos os anos' }, ...anos.map((a) => ({ v: a, label: a }))] }
+      case 'estado': return { valor: filtroEstado, set: (v) => setFiltroEstado(v as typeof filtroEstado), opcoes: [{ v: '', label: 'Todos' }, { v: 'set', label: 'Set' }, { v: 'caderneta', label: 'Caderneta' }, { v: 'naotem', label: 'Não tem' }] }
+      default: return null
+    }
+  }
+
   // célula por coluna
   function celula(r: DisplayRow, key: Col) {
     switch (key) {
@@ -254,9 +282,10 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
             <Disco url={r.coin.anverso_img} />
             <Disco url={r.coin.reverso_img} />
           </span>
-          <span className="truncate">{String(valOf(r, 'moeda')) || '—'}</span>
+          <span className="truncate">{r.coin.denominacao || r.coin.titulo || '—'}</span>
         </span>
       )
+      case 'comemoracao': return <span className="truncate text-mp-ink-soft" title={r.coin.tema ?? ''}>{r.coin.comemorativa ? (r.coin.tema || '—') : '—'}</span>
       case 'denom': return <span className="truncate">{r.coin.denominacao || '—'}</span>
       case 'serie': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{r.coin.serie || '—'}</span>
       case 'metal': return <span className="whitespace-nowrap text-mp-ink-soft">{metalPt(r) || '—'}</span>
@@ -296,40 +325,30 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <select value={filtroPais} onChange={(e) => setFiltroPais(e.target.value)} className={selectCls}>
-          <option value="">Todos os países</option>
-          {paises.map(([cod, nome]) => <option key={cod} value={cod}>{nome}</option>)}
-        </select>
-        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value as typeof filtroTipo)} className={selectCls}>
-          <option value="">Circulação + Comemorativas</option>
-          <option value="circulacao">Só Circulação</option>
-          <option value="comemorativa">Só Comemorativas</option>
-        </select>
-        <select value={filtroAno} onChange={(e) => setFiltroAno(e.target.value)} className={selectCls} style={{ minWidth: 100 }}>
-          <option value="">Todos os anos</option>
-          {anos.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)} className={selectCls} style={{ minWidth: 140 }}>
-          <option value="">Todos os estados</option>
-          <option value="set">Set</option>
-          <option value="caderneta">Caderneta</option>
-          <option value="naotem">Não tem</option>
-        </select>
-        {temFiltro && (
-          <button onClick={() => { setFiltroPais(''); setFiltroTipo(''); setFiltroAno(''); setFiltroEstado('') }}
-            className="text-xs text-mp-ink-soft underline hover:text-mp-ink">Limpar filtros</button>
+      {/* Barra de ações numa só linha: voltar + título + contagem + botões */}
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        {onVoltar && (
+          <button onClick={onVoltar} className="text-sm font-semibold text-mp-gold-strong hover:underline whitespace-nowrap">← voltar</button>
         )}
-
+        {titulo && (
+          <h2 className="font-serif text-xl font-semibold">{titulo}
+            {subtitulo && <span className="ml-1 text-sm font-normal text-mp-ink-faint">· {subtitulo}</span>}
+          </h2>
+        )}
         <div className="relative ml-auto flex items-center gap-2">
+          {acaoExtra}
+          <span className="mr-1 hidden text-xs text-mp-ink-soft sm:inline">
+            {filtradas.length}{temFiltro ? ' filtr.' : ''} · <span className="font-semibold text-mp-set">{totalSet}</span>/<span className="font-semibold text-mp-caderneta">{totalCad}</span>/{totalFalta} ·{' '}
+            <b className="font-serif text-mp-gold-strong">{eur(totalValor)}</b>
+          </span>
+          {temFiltro && (
+            <button onClick={() => { setFiltroPais(''); setFiltroTipo(''); setFiltroAno(''); setFiltroEstado('') }}
+              className="text-xs text-mp-ink-soft underline hover:text-mp-ink whitespace-nowrap">limpar</button>
+          )}
           <button onClick={() => setPainel(painel === 'cols' ? null : 'cols')}
-            className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">
-            ▦ Colunas
-          </button>
+            className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">▦ Colunas</button>
           <button onClick={() => setPainel(painel === 'sort' ? null : 'sort')}
-            className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">
-            ↕ Ordenar{sorts.length ? ` (${sorts.length})` : ''}
-          </button>
+            className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">↕ Ordenar{sorts.length ? ` (${sorts.length})` : ''}</button>
           <button onClick={onImprimir}
             className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">🖨 Em falta</button>
           <button onClick={onExportar}
@@ -337,14 +356,6 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
           {painel === 'cols' && <PainelColunas colVis={colVis} setColVis={setColVis} onClose={() => setPainel(null)} />}
           {painel === 'sort' && <PainelOrdenar sorts={sorts} setSorts={setSorts} onClose={() => setPainel(null)} />}
         </div>
-      </div>
-
-      <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-mp-ink-soft">
-        <span>{filtradas.length} moedas{temFiltro ? ' (filtradas)' : ''}</span>
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-mp-set" /> set {totalSet}</span>
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-mp-caderneta" /> caderneta {totalCad}</span>
-        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-mp-falta" /> não tem {totalFalta}</span>
-        <span className="ml-auto font-medium">Valor: <b className="font-serif text-mp-gold-strong">{eur(totalValor)}</b></span>
       </div>
 
       {totalPaginas > 1 && (
@@ -357,17 +368,37 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
         </div>
       )}
 
-      <div className="max-h-[65vh] overflow-auto rounded-2xl border border-mp-border bg-mp-surface">
+      <div className="max-h-[68vh] overflow-auto rounded-2xl border border-mp-border bg-mp-surface">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-mp-surface-muted text-left text-[11px] uppercase tracking-wide text-mp-ink-soft">
             <tr>
               {colVis.map((key) => {
                 const meta = COLUNAS.find((c) => c.key === key)!
                 const s = sortDe(key)
+                const filtro = filtroDaCol(key)
                 return (
-                  <th key={key} onClick={() => ordenarPor(key)}
-                    className={'cursor-pointer select-none whitespace-nowrap px-3 py-2 font-semibold hover:text-mp-ink ' + (meta.right ? 'text-right' : '')}>
-                    {meta.label}{s ? (s.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}
+                  <th key={key} className={'whitespace-nowrap px-3 py-2 font-semibold ' + (meta.right ? 'text-right' : '')}>
+                    <span className="inline-flex items-center gap-1">
+                      <button onClick={() => ordenarPor(key)} className="cursor-pointer select-none hover:text-mp-ink">
+                        {meta.label}{s ? (s.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}
+                      </button>
+                      {filtro && (
+                        <span className="relative" data-filtro>
+                          <button onClick={() => setFiltroAberto(filtroAberto === key ? null : key)}
+                            className={'rounded px-0.5 ' + (filtro.valor ? 'text-mp-gold-strong' : 'text-mp-ink-faint hover:text-mp-ink-soft')} aria-label="Filtrar">▾</button>
+                          {filtroAberto === key && (
+                            <div className="absolute left-0 top-full z-20 mt-1 max-h-60 w-40 overflow-auto rounded-xl border border-mp-border bg-mp-surface p-1 normal-case shadow-lg">
+                              {filtro.opcoes.map((o) => (
+                                <button key={o.v} onClick={() => { filtro.set(o.v); setFiltroAberto(null) }}
+                                  className={'block w-full rounded-lg px-2 py-1 text-left text-xs font-normal hover:bg-mp-surface-muted ' + (filtro.valor === o.v ? 'font-semibold text-mp-gold-strong' : 'text-mp-ink')}>
+                                  {o.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </span>
+                      )}
+                    </span>
                   </th>
                 )
               })}

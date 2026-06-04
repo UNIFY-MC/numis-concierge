@@ -268,44 +268,37 @@ export default function ColecaoPortugal() {
       </div>
 
       {tabelaAberta ? (
-        <div>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <button onClick={voltar} className="text-sm font-semibold text-mp-gold-strong hover:underline">
-              ← voltar às séries
-            </button>
-            {!verTodos && (
-              <div className="inline-flex gap-1 rounded-xl border border-mp-border bg-mp-surface-muted p-1">
-                {(['lista', 'tabela'] as Vista[]).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setVista(v)}
-                    className={'rounded-lg px-3 py-1 text-sm font-semibold capitalize transition-colors ' +
-                      (vista === v ? 'bg-mp-gold text-white' : 'text-mp-ink-soft hover:text-mp-ink')}
-                  >
-                    {v === 'lista' ? '▦ Lista' : '☰ Tabela'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <h2 className="mb-4 font-serif text-xl font-semibold">
-            {tituloTabela} <span className="text-sm font-normal text-mp-ink-faint">· {coinsDaSerie.length} tipos</span>
-          </h2>
-          {vista === 'tabela' || verTodos ? (
-            <TabelaView
-              rows={rowsDaSerie}
-              onSelect={setFicha}
-              onExportar={() => {}}
-              onImprimir={() => {}}
-              onQuantidade={alterarQuantidade}
-              onFormato={alterarFormato}
-              prefsKey="colecoes-pt"
-              tagsInfo={{ tags, coinTags }}
-            />
-          ) : (
+        vista === 'tabela' || verTodos ? (
+          <TabelaView
+            rows={rowsDaSerie}
+            onSelect={setFicha}
+            onExportar={() => {}}
+            onImprimir={() => {}}
+            onQuantidade={alterarQuantidade}
+            onFormato={alterarFormato}
+            prefsKey="colecoes-pt"
+            tagsInfo={{ tags, coinTags }}
+            titulo={tituloTabela}
+            subtitulo={`${coinsDaSerie.length} tipos`}
+            onVoltar={voltar}
+            acaoExtra={!verTodos ? (
+              <button onClick={() => setVista('lista')}
+                className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">▦ Lista</button>
+            ) : undefined}
+          />
+        ) : (
+          <div>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <button onClick={voltar} className="text-sm font-semibold text-mp-gold-strong hover:underline">← voltar às séries</button>
+              <button onClick={() => setVista('tabela')}
+                className="rounded-lg border border-mp-border px-3 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted whitespace-nowrap">☰ Tabela</button>
+            </div>
+            <h2 className="mb-4 font-serif text-xl font-semibold">
+              {tituloTabela} <span className="text-sm font-normal text-mp-ink-faint">· {coinsDaSerie.length} tipos</span>
+            </h2>
             <ListaMoedas coins={coinsDaSerie} tenho={tenho} onAbrir={abrirFicha} />
-          )}
-        </div>
+          </div>
+        )
       ) : (
         <div>
           {eraSel !== 'temas' && (
