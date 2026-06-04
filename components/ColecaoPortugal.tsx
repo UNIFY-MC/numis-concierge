@@ -240,12 +240,24 @@ export default function ColecaoPortugal() {
             Organizada por era e reinado — {coins.length} tipos no catálogo, {tenho.size} na coleção
           </p>
         </div>
-        <button
-          onClick={() => { setVerTodos('tudo'); setVista('tabela') }}
-          className="shrink-0 rounded-xl border border-mp-gold px-3.5 py-2 text-sm font-semibold text-mp-gold-strong hover:bg-mp-falta-bg"
-        >
-          ☰ Ver tudo em tabela
-        </button>
+        {!tabelaAberta && (
+          <div className="flex shrink-0 items-center gap-2">
+            {eraSel !== 'temas' && (
+              <button
+                onClick={() => { setVerTodos('era'); setVista('tabela') }}
+                className="rounded-xl border border-mp-border px-3.5 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
+              >
+                ☰ Ver esta era em tabela
+              </button>
+            )}
+            <button
+              onClick={() => { setVerTodos('tudo'); setVista('tabela') }}
+              className="rounded-xl border border-mp-gold px-3.5 py-2 text-sm font-semibold text-mp-gold-strong hover:bg-mp-falta-bg"
+            >
+              ☰ Ver tudo em tabela
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Eras */}
@@ -317,16 +329,6 @@ export default function ColecaoPortugal() {
         )
       ) : (
         <div>
-          {eraSel !== 'temas' && (
-            <div className="mb-3 flex justify-end">
-              <button
-                onClick={() => { setVerTodos('era'); setVista('tabela') }}
-                className="rounded-lg border border-mp-border px-3 py-1.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
-              >
-                ☰ Ver todos desta era em tabela
-              </button>
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {seriesDaEra.map(([nome, v]) => (
               <CartaoSerie
@@ -359,15 +361,20 @@ function CartaoSerie({ nome, coins, tenho, onAbrir }: {
   const meus = coins.filter((c) => tenho.has(c.id)).length
   const pct = coins.length ? Math.round((meus / coins.length) * 100) : 0
   const retrato = RETRATOS[nome]
+  // sem retrato (séries não-reinado, ou reinados medievais sem foto): usa a foto
+  // de uma moeda representativa da série (a de maior valor facial com imagem).
+  const fotoMoeda = retrato ? null
+    : [...coins].filter((c) => c.anverso_img).sort((a, b) => (b.valor_facial ?? 0) - (a.valor_facial ?? 0))[0]?.anverso_img ?? null
+  const imagem = retrato ?? fotoMoeda
   return (
     <button
       onClick={onAbrir}
       className="group flex flex-col items-center rounded-2xl border border-mp-border bg-mp-surface p-4 text-center transition-shadow hover:shadow-md"
     >
-      {/* Retrato do rei (domínio público, Wikipédia) em estilo personagem */}
+      {/* Retrato do rei (Wikipédia) ou foto de uma moeda representativa da série */}
       <div className="mb-3 grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-2 ring-mp-gold-soft">
-        {retrato
-          ? <img src={retrato} alt={nome} loading="lazy" className="h-full w-full object-cover object-top transition-transform group-hover:scale-105" />
+        {imagem
+          ? <img src={imagem} alt={nome} loading="lazy" className={'h-full w-full transition-transform group-hover:scale-105 ' + (retrato ? 'object-cover object-top' : 'object-cover')} />
           : <span className="text-3xl text-mp-coin">⊚</span>}
       </div>
       <span className="font-serif text-sm font-semibold leading-tight text-mp-ink">{nome}</span>
