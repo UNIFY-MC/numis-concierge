@@ -15,6 +15,7 @@ export const ERAS: Era[] = [
   { chave: 'euro', label: 'Euro', icone: '⭐', min: 40, max: 46 },
   { chave: 'ilhas', label: 'Ilhas & Ultramar', icone: '🏝️', min: 50, max: 52 },
   { chave: 'fichas', label: 'Fichas & Tokens', icone: '🎟️', min: 60, max: 60 },
+  { chave: 'temas', label: 'Temáticas', icone: '🏷️', min: 70, max: 70 },
   { chave: 'outras', label: 'Por classificar', icone: '❓', min: 90, max: 99 },
 ]
 

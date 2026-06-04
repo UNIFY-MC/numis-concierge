@@ -6,6 +6,7 @@ import {
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
 import { ERAS, eraDe } from '@/lib/series'
+import { getTags, getCoinTags, type Tag } from '@/lib/tags'
 import { itemPrincipal } from '@/lib/types'
 import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao } from '@/lib/types'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
@@ -21,6 +22,8 @@ export default function ColecaoPortugal() {
   const [coins, setCoins] = useState<CatalogCoin[]>([])
   const [issues, setIssues] = useState<CatalogIssue[]>([])
   const [col, setCol] = useState<CollectionItem[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
+  const [coinTags, setCoinTags] = useState<Map<string, Set<string>>>(new Map())
   const [loading, setLoading] = useState(true)
   const [eraSel, setEraSel] = useState('monarquia')
   const [serieSel, setSerieSel] = useState<string | null>(null)
@@ -34,8 +37,8 @@ export default function ColecaoPortugal() {
   }, [col])
 
   useEffect(() => {
-    Promise.all([getCatalogPais('pt'), getIssuesPais('pt'), getCollection()])
-      .then(([cs, is, c]) => { setCoins(cs); setIssues(is); setCol(c) })
+    Promise.all([getCatalogPais('pt'), getIssuesPais('pt'), getCollection(), getTags(), getCoinTags()])
+      .then(([cs, is, c, tg, ctg]) => { setCoins(cs); setIssues(is); setCol(c); setTags(tg); setCoinTags(ctg) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -132,6 +135,17 @@ export default function ColecaoPortugal() {
     return m
   }, [coins])
 
+  // coins de cada tag (coleções temáticas)
+  const coinsPorTag = useMemo(() => {
+    const m = new Map<string, CatalogCoin[]>()
+    for (const c of coins) {
+      const tids = coinTags.get(c.id)
+      if (!tids) continue
+      for (const tid of tids) { const a = m.get(tid) ?? []; a.push(c); m.set(tid, a) }
+    }
+    return m
+  }, [coins, coinTags])
+
   const contEra = useMemo(() => {
     const tot = new Map<string, number>()
     const meus = new Map<string, number>()
@@ -147,18 +161,35 @@ export default function ColecaoPortugal() {
         anoMax.set(e.chave, Math.max(anoMax.get(e.chave) ?? -Infinity, c.ano_inicio))
       }
     }
+    // era Temáticas: total = moedas com pelo menos uma tag
+    let comTag = 0, comTagMeus = 0
+    for (const c of coins) if (coinTags.has(c.id)) { comTag++; if (tenho.has(c.id)) comTagMeus++ }
+    if (comTag) { tot.set('temas', comTag); meus.set('temas', comTagMeus) }
     return { tot, meus, anoMin, anoMax }
-  }, [coins, tenho])
+  }, [coins, tenho, coinTags])
 
   const seriesDaEra = useMemo(() => {
+    if (eraSel === 'temas') {
+      return tags
+        .map((t) => [t.nome, { ord: 70, coins: coinsPorTag.get(t.id) ?? [] }] as [string, { ord: number; coins: CatalogCoin[] }])
+        .filter(([, v]) => v.coins.length > 0)
+        .sort((a, b) => a[0].localeCompare(b[0], 'pt'))
+    }
     const era = ERAS.find((e) => e.chave === eraSel)
     if (!era) return []
     return [...series.entries()]
       .filter(([, v]) => v.ord >= era.min && v.ord <= era.max)
       .sort((a, b) => a[1].ord - b[1].ord)
-  }, [series, eraSel])
+  }, [series, eraSel, tags, coinsPorTag])
 
-  const coinsDaSerie = serieSel ? (series.get(serieSel)?.coins ?? []) : []
+  const coinsDaSerie = useMemo(() => {
+    if (!serieSel) return []
+    if (eraSel === 'temas') {
+      const t = tags.find((tg) => tg.nome === serieSel)
+      return t ? (coinsPorTag.get(t.id) ?? []) : []
+    }
+    return series.get(serieSel)?.coins ?? []
+  }, [serieSel, eraSel, tags, coinsPorTag, series])
   // A tabela mostra uma linha por ISSUE (cada ano emitido), não só a 1.ª — assim
   // vês/geres todos os anos de cada tipo (ex. 1 Cêntimo 2002…2026).
   const rowsDaSerie = useMemo(() => {

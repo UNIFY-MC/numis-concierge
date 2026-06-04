@@ -4,6 +4,7 @@ import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
 import type { DisplayRow, Estado, FormatoColecao, CollectionItem } from '@/lib/types'
 import CoinDisc from './CoinDisc'
 import Flag from './Flag'
+import TagsEditor from './TagsEditor'
 
 export interface CoinSheetSave {
   // Uma moeda pode existir em vários formatos ao mesmo tempo, cada um o seu exemplar.
@@ -261,6 +262,10 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           <span className={lbl}>Observações</span>
           <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} className={inp + ' resize-y'} />
         </label>
+
+        <div className="mb-4">
+          <TagsEditor catalogCoinId={row.coin.id} />
+        </div>
 
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 border border-mp-border rounded-lg py-2.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted">
