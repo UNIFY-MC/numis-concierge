@@ -61,3 +61,6 @@ ambiguas-revisao.json
 scripts/.maktun-token
 maktun-cand.json
 maktun-fotos.json
+
+# Publicações INCM (grandes, locais)
+assets/books/
