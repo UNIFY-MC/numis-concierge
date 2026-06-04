@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { estadoDe, formatosComMoeda, FORMATOS_COLECAO } from '@/lib/types'
 import { valorColecao, eur } from '@/lib/valor'
-import { casaEmissor } from '@/lib/emissores'
+import { casaEmissor, casaEmissorCurto } from '@/lib/emissores'
 import { getUiPrefs, setUiPrefs } from '@/lib/catalog'
 import type { DisplayRow, FormatoColecao } from '@/lib/types'
 import Flag from './Flag'
 
 type Col =
-  | 'pais' | 'tipo' | 'moeda' | 'metal' | 'km' | 'face' | 'ano' | 'casa'
-  | 'peso' | 'diam' | 'grau' | 'tiragem' | 'estado' | 'qtd' | 'valor'
+  | 'pais' | 'tipo' | 'moeda' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
+  | 'numista' | 'face' | 'ano' | 'casa' | 'mintmark' | 'peso' | 'diam' | 'espessura'
+  | 'anversodesc' | 'reversodesc' | 'orla' | 'grau' | 'tiragem' | 'estado' | 'qtd' | 'valor'
 type Dir = 1 | -1
 interface SortRule { col: Col; dir: Dir }
 
@@ -19,13 +20,23 @@ const COLUNAS: ColMeta[] = [
   { key: 'pais', label: 'País' },
   { key: 'tipo', label: 'Tipo' },
   { key: 'moeda', label: 'Moeda / Comemoração' },
+  { key: 'denom', label: 'Denominação' },
+  { key: 'serie', label: 'Série / Reinado' },
   { key: 'metal', label: 'Metal' },
+  { key: 'composicao', label: 'Composição' },
   { key: 'km', label: 'KM#' },
+  { key: 'schon', label: 'Schön#' },
+  { key: 'numista', label: 'Numista ID' },
   { key: 'face', label: 'Face', right: true },
   { key: 'ano', label: 'Ano' },
   { key: 'casa', label: 'Casa / Emissor' },
+  { key: 'mintmark', label: 'Mintmark' },
   { key: 'peso', label: 'Peso', right: true },
   { key: 'diam', label: 'Diâmetro', right: true },
+  { key: 'espessura', label: 'Espessura', right: true },
+  { key: 'anversodesc', label: 'Desc. anverso' },
+  { key: 'reversodesc', label: 'Desc. reverso' },
+  { key: 'orla', label: 'Orla' },
   { key: 'grau', label: 'Grau' },
   { key: 'tiragem', label: 'Tiragem', right: true },
   { key: 'estado', label: 'Estado' },
@@ -63,19 +74,38 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'pais':   return r.coin.pais_nome
     case 'tipo':   return r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')
     case 'moeda':  return r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || '') : (r.coin.denominacao ?? '')
+    case 'denom':  return r.coin.denominacao ?? ''
+    case 'serie':  return r.coin.serie ?? ''
     case 'metal':  return metalPt(r)
+    case 'composicao': return r.coin.composicao ?? ''
     case 'km':     return r.coin.km_ref ?? ''
+    case 'schon':  return r.coin.schon_ref ?? ''
+    case 'numista': return r.coin.numista_id ?? 0
     case 'face':   return r.coin.valor_facial ?? 0
     case 'ano':    return r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10) ?? 0
     case 'casa':   return casaEmissor(r)
+    case 'mintmark': return r.coin.mintmark ?? r.issue.mintmark_variante ?? ''
     case 'peso':   return r.coin.peso_g ?? 0
     case 'diam':   return r.coin.diametro_mm ?? 0
+    case 'espessura': return r.coin.espessura_mm ?? 0
+    case 'anversodesc': return r.coin.anverso_desc ?? ''
+    case 'reversodesc': return r.coin.reverso_desc ?? ''
+    case 'orla':   return r.coin.orla_desc ?? r.coin.orla_tipo ?? ''
     case 'grau':   return r.item?.grau ?? ''
     case 'tiragem': return r.issue.tiragem ?? 0
     case 'estado': return estadoDe(r.item)
     case 'qtd':    return r.item?.quantidade ?? 0
     case 'valor':  return valorColecao(r.coin, r.itens)
   }
+}
+
+// Disco pequeno de uma face (anverso/reverso) na tabela.
+function Disco({ url }: { url: string | null }) {
+  return (
+    <span className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-1 ring-mp-border">
+      {url ? <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" /> : <span className="text-[9px] text-mp-coin-empty">⊚</span>}
+    </span>
+  )
 }
 
 const FORMATO_CLS: Record<FormatoColecao, string> = {
@@ -214,19 +244,30 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
       case 'tipo': return <span className="text-mp-ink-soft">{r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')}</span>
       case 'moeda': return (
         <span className="flex items-center gap-2">
-          <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-1 ring-mp-border">
-            {r.coin.anverso_img ? <img src={r.coin.anverso_img} alt="" loading="lazy" className="h-full w-full object-cover" /> : <span className="text-[10px] text-mp-coin-empty">⊚</span>}
+          <span className="flex shrink-0 gap-0.5">
+            <Disco url={r.coin.anverso_img} />
+            <Disco url={r.coin.reverso_img} />
           </span>
           <span className="truncate">{String(valOf(r, 'moeda')) || '—'}</span>
         </span>
       )
+      case 'denom': return <span className="truncate">{r.coin.denominacao || '—'}</span>
+      case 'serie': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{r.coin.serie || '—'}</span>
       case 'metal': return <span className="whitespace-nowrap text-mp-ink-soft">{metalPt(r) || '—'}</span>
+      case 'composicao': return <span className="text-[11px] text-mp-ink-soft">{r.coin.composicao || '—'}</span>
       case 'km': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.km_ref || '—'}</span>
+      case 'schon': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.schon_ref || '—'}</span>
+      case 'numista': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.numista_id || '—'}</span>
       case 'face': return r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'
       case 'ano': return anoNum(r) || r.issue.ano
-      case 'casa': return <span className="text-[11px] text-mp-ink-soft">{casaEmissor(r)}</span>
+      case 'casa': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{casaEmissorCurto(r)}</span>
+      case 'mintmark': return <span className="text-mp-ink-soft">{r.coin.mintmark || r.issue.mintmark_variante || '—'}</span>
       case 'peso': return <span className="whitespace-nowrap text-mp-ink-soft">{r.coin.peso_g != null ? `${r.coin.peso_g} g` : '—'}</span>
       case 'diam': return <span className="whitespace-nowrap text-mp-ink-soft">{r.coin.diametro_mm != null ? `${r.coin.diametro_mm} mm` : '—'}</span>
+      case 'espessura': return <span className="whitespace-nowrap text-mp-ink-soft">{r.coin.espessura_mm != null ? `${r.coin.espessura_mm} mm` : '—'}</span>
+      case 'anversodesc': return <span className="text-[11px] text-mp-ink-soft" title={r.coin.anverso_desc ?? ''}>{r.coin.anverso_desc || '—'}</span>
+      case 'reversodesc': return <span className="text-[11px] text-mp-ink-soft" title={r.coin.reverso_desc ?? ''}>{r.coin.reverso_desc || '—'}</span>
+      case 'orla': return <span className="text-[11px] text-mp-ink-soft">{r.coin.orla_desc || r.coin.orla_tipo || '—'}</span>
       case 'grau': return <span className="text-mp-ink-soft">{r.item?.grau || '—'}</span>
       case 'tiragem': return <span className="whitespace-nowrap tabular-nums text-mp-ink-soft">{r.issue.tiragem != null ? r.issue.tiragem.toLocaleString('pt-PT') : '—'}</span>
       case 'estado': return <div onClick={(e) => e.stopPropagation()}><EstadoSelector formatos={formatosComMoeda(r.itens)} onChange={(f, a) => onFormato(r, f, a)} /></div>

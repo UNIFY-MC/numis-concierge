@@ -31,8 +31,20 @@ export const EMISSOR_NACIONAL: Record<string, string> = {
   va: 'Istituto Poligrafico e Zecca dello Stato (p/ Vaticano)',
 }
 
+// Forma abreviada (sigla/curta) para caber numa linha na tabela.
+export const EMISSOR_CURTO: Record<string, string> = {
+  de: 'Münze DE', ad: 'Andorra', at: 'Münze AT', be: 'Royal Mint BE', bg: 'Bulgarian Mint',
+  cy: 'BC Chipre', hr: 'Croatian Mint', sk: 'NBS', si: 'Banka SI', es: 'FNMT', ee: 'Eesti Pank',
+  fi: 'Rahapaja FI', fr: 'Monnaie de Paris', gr: 'BC Grécia', nl: 'KNM', ie: 'CB Ireland',
+  it: 'IPZS', lv: 'Latvijas Banka', lt: 'Lietuvos b.', lu: 'BCL', mt: 'CB Malta',
+  mc: 'MdP (MC)', pt: 'INCM', sm: 'IPZS (SM)', va: 'IPZS (VA)',
+}
+
 export function emissorNacional(paisCodigo: string): string | null {
   return EMISSOR_NACIONAL[paisCodigo.split('-')[0].toLowerCase()] ?? null
+}
+export function emissorCurto(paisCodigo: string): string | null {
+  return EMISSOR_CURTO[paisCodigo.split('-')[0].toLowerCase()] ?? null
 }
 
 // "Casa / Emissor" de uma linha: na Alemanha a cidade da casa (A=Berlim…);
@@ -46,4 +58,13 @@ export function casaEmissor(r: DisplayRow): string {
     return c ? `${r.issue.casa_moeda} · ${c.cidade}` : `Casa ${r.issue.casa_moeda}`
   }
   return emissorNacional(r.coin.pais_codigo) ?? '—'
+}
+
+// Versão curta para a tabela (cabe numa linha). Na Alemanha mantém a cidade da casa.
+export function casaEmissorCurto(r: DisplayRow): string {
+  if (r.coin.pais_codigo === 'de' && r.issue.casa_moeda) {
+    const c = casaAlemanha(`de-${r.issue.casa_moeda}`)
+    return c ? `${r.issue.casa_moeda} · ${c.cidade}` : `Casa ${r.issue.casa_moeda}`
+  }
+  return emissorCurto(r.coin.pais_codigo) ?? '—'
 }
