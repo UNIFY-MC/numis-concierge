@@ -14,6 +14,8 @@ export interface CatalogCoin {
   categoria: 'coin' | 'banknote' | 'token' | 'exonumia'
   familia: Familia | null
   moeda_hist: string | null
+  ano_inicio: number | null
+  ano_fim: number | null
   pais_codigo: string
   pais_nome: string
   valor_facial: number | null
@@ -23,6 +25,7 @@ export interface CatalogCoin {
   tipo_emissao: 'Circulação' | 'Comemorativa' | 'Proof' | 'BU' | 'Piéfort' | 'Essai' | null
   comemorativa: boolean
   serie: string | null
+  serie_ord: number | null
   tema: string | null
   composicao: string | null
   metal: string | null
