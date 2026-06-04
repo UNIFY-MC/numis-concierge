@@ -4,12 +4,15 @@ import { valorColecao, eur } from '@/lib/valor'
 import { casaEmissor, casaEmissorCurto } from '@/lib/emissores'
 import { getUiPrefs, setUiPrefs } from '@/lib/catalog'
 import type { DisplayRow, FormatoColecao } from '@/lib/types'
+import type { Tag } from '@/lib/tags'
 import Flag from './Flag'
+
+interface TagsInfo { tags: Tag[]; coinTags: Map<string, Set<string>> }
 
 type Col =
   | 'pais' | 'tipo' | 'moeda' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
   | 'numista' | 'face' | 'ano' | 'casa' | 'mintmark' | 'peso' | 'diam' | 'espessura'
-  | 'anversodesc' | 'reversodesc' | 'orla' | 'grau' | 'tiragem' | 'estado' | 'qtd' | 'valor'
+  | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'grau' | 'tiragem' | 'estado' | 'qtd' | 'valor'
 type Dir = 1 | -1
 interface SortRule { col: Col; dir: Dir }
 
@@ -37,6 +40,7 @@ const COLUNAS: ColMeta[] = [
   { key: 'anversodesc', label: 'Desc. anverso' },
   { key: 'reversodesc', label: 'Desc. reverso' },
   { key: 'orla', label: 'Orla' },
+  { key: 'tags', label: 'Coleções' },
   { key: 'grau', label: 'Grau' },
   { key: 'tiragem', label: 'Tiragem', right: true },
   { key: 'estado', label: 'Estado' },
@@ -91,6 +95,7 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'anversodesc': return r.coin.anverso_desc ?? ''
     case 'reversodesc': return r.coin.reverso_desc ?? ''
     case 'orla':   return r.coin.orla_desc ?? r.coin.orla_tipo ?? ''
+    case 'tags':   return ''  // ordenação por tags não se aplica (chips)
     case 'grau':   return r.item?.grau ?? ''
     case 'tiragem': return r.issue.tiragem ?? 0
     case 'estado': return estadoDe(r.item)
@@ -158,9 +163,10 @@ interface TabelaViewProps {
   onQuantidade: (row: DisplayRow, qtd: number) => void
   onFormato: (row: DisplayRow, formato: FormatoColecao, ativo: boolean) => void
   prefsKey?: string  // se definido, guarda colunas/ordenação na BD por esta chave
+  tagsInfo?: TagsInfo  // coleções temáticas, para a coluna "Coleções"
 }
 
-export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato, prefsKey }: TabelaViewProps) {
+export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQuantidade, onFormato, prefsKey, tagsInfo }: TabelaViewProps) {
   const [colVis, setColVis] = useState<Col[]>(COL_DEFAULT)
   const [sorts, setSorts] = useState<SortRule[]>([])
   const [painel, setPainel] = useState<'cols' | 'sort' | null>(null)
@@ -268,6 +274,18 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
       case 'anversodesc': return <span className="text-[11px] text-mp-ink-soft" title={r.coin.anverso_desc ?? ''}>{r.coin.anverso_desc || '—'}</span>
       case 'reversodesc': return <span className="text-[11px] text-mp-ink-soft" title={r.coin.reverso_desc ?? ''}>{r.coin.reverso_desc || '—'}</span>
       case 'orla': return <span className="text-[11px] text-mp-ink-soft">{r.coin.orla_desc || r.coin.orla_tipo || '—'}</span>
+      case 'tags': {
+        const ids = tagsInfo?.coinTags.get(r.coin.id)
+        if (!ids || !ids.size || !tagsInfo) return <span className="text-mp-ink-faint">—</span>
+        const nomes = tagsInfo.tags.filter((t) => ids.has(t.id))
+        return (
+          <span className="flex flex-wrap gap-1">
+            {nomes.map((t) => (
+              <span key={t.id} className="whitespace-nowrap rounded-full bg-mp-primary-soft px-1.5 py-0.5 text-[10px] font-semibold text-mp-primary-strong">{t.nome}</span>
+            ))}
+          </span>
+        )
+      }
       case 'grau': return <span className="text-mp-ink-soft">{r.item?.grau || '—'}</span>
       case 'tiragem': return <span className="whitespace-nowrap tabular-nums text-mp-ink-soft">{r.issue.tiragem != null ? r.issue.tiragem.toLocaleString('pt-PT') : '—'}</span>
       case 'estado': return <div onClick={(e) => e.stopPropagation()}><EstadoSelector formatos={formatosComMoeda(r.itens)} onChange={(f, a) => onFormato(r, f, a)} /></div>

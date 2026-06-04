@@ -27,6 +27,7 @@ export default function ColecaoPortugal() {
   const [loading, setLoading] = useState(true)
   const [eraSel, setEraSel] = useState('monarquia')
   const [serieSel, setSerieSel] = useState<string | null>(null)
+  const [verTodos, setVerTodos] = useState<'era' | 'tudo' | null>(null)
   const [vista, setVista] = useState<Vista>('lista')
   const [ficha, setFicha] = useState<DisplayRow | null>(null)
 
@@ -183,13 +184,21 @@ export default function ColecaoPortugal() {
   }, [series, eraSel, tags, coinsPorTag])
 
   const coinsDaSerie = useMemo(() => {
+    if (verTodos === 'tudo') return coins
+    if (verTodos === 'era') return coins.filter((c) => eraDe(c.serie_ord)?.chave === eraSel)
     if (!serieSel) return []
     if (eraSel === 'temas') {
       const t = tags.find((tg) => tg.nome === serieSel)
       return t ? (coinsPorTag.get(t.id) ?? []) : []
     }
     return series.get(serieSel)?.coins ?? []
-  }, [serieSel, eraSel, tags, coinsPorTag, series])
+  }, [verTodos, serieSel, eraSel, tags, coinsPorTag, series, coins])
+
+  const tabelaAberta = serieSel != null || verTodos != null
+  const tituloTabela = verTodos === 'tudo' ? 'Toda a coleção de Portugal'
+    : verTodos === 'era' ? `Toda a era · ${ERAS.find((e) => e.chave === eraSel)?.label ?? ''}`
+    : serieSel ?? ''
+  function voltar() { setSerieSel(null); setVerTodos(null) }
   // A tabela mostra uma linha por ISSUE (cada ano emitido), não só a 1.ª — assim
   // vês/geres todos os anos de cada tipo (ex. 1 Cêntimo 2002…2026).
   const rowsDaSerie = useMemo(() => {
@@ -207,13 +216,21 @@ export default function ColecaoPortugal() {
 
   return (
     <div className="mx-auto max-w-[92rem] px-6 py-6 lg:px-10">
-      <header className="mb-6">
-        <h1 className="font-serif text-2xl font-semibold">
-          Coleção de <span className="text-mp-gold">Portugal</span>
-        </h1>
-        <p className="mt-1 text-xs text-mp-ink-soft">
-          Organizada por era e reinado — {coins.length} tipos no catálogo, {tenho.size} na coleção
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-2xl font-semibold">
+            Coleção de <span className="text-mp-gold">Portugal</span>
+          </h1>
+          <p className="mt-1 text-xs text-mp-ink-soft">
+            Organizada por era e reinado — {coins.length} tipos no catálogo, {tenho.size} na coleção
+          </p>
+        </div>
+        <button
+          onClick={() => { setVerTodos('tudo'); setVista('tabela') }}
+          className="shrink-0 rounded-xl border border-mp-gold px-3.5 py-2 text-sm font-semibold text-mp-gold-strong hover:bg-mp-falta-bg"
+        >
+          ☰ Ver tudo em tabela
+        </button>
       </header>
 
       {/* Eras */}
@@ -250,29 +267,31 @@ export default function ColecaoPortugal() {
         })}
       </div>
 
-      {serieSel ? (
+      {tabelaAberta ? (
         <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <button onClick={() => setSerieSel(null)} className="text-sm font-semibold text-mp-gold-strong hover:underline">
+            <button onClick={voltar} className="text-sm font-semibold text-mp-gold-strong hover:underline">
               ← voltar às séries
             </button>
-            <div className="inline-flex gap-1 rounded-xl border border-mp-border bg-mp-surface-muted p-1">
-              {(['lista', 'tabela'] as Vista[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setVista(v)}
-                  className={'rounded-lg px-3 py-1 text-sm font-semibold capitalize transition-colors ' +
-                    (vista === v ? 'bg-mp-gold text-white' : 'text-mp-ink-soft hover:text-mp-ink')}
-                >
-                  {v === 'lista' ? '▦ Lista' : '☰ Tabela'}
-                </button>
-              ))}
-            </div>
+            {!verTodos && (
+              <div className="inline-flex gap-1 rounded-xl border border-mp-border bg-mp-surface-muted p-1">
+                {(['lista', 'tabela'] as Vista[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setVista(v)}
+                    className={'rounded-lg px-3 py-1 text-sm font-semibold capitalize transition-colors ' +
+                      (vista === v ? 'bg-mp-gold text-white' : 'text-mp-ink-soft hover:text-mp-ink')}
+                  >
+                    {v === 'lista' ? '▦ Lista' : '☰ Tabela'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <h2 className="mb-4 font-serif text-xl font-semibold">
-            {serieSel} <span className="text-sm font-normal text-mp-ink-faint">· {coinsDaSerie.length} tipos</span>
+            {tituloTabela} <span className="text-sm font-normal text-mp-ink-faint">· {coinsDaSerie.length} tipos</span>
           </h2>
-          {vista === 'tabela' ? (
+          {vista === 'tabela' || verTodos ? (
             <TabelaView
               rows={rowsDaSerie}
               onSelect={setFicha}
@@ -281,22 +300,35 @@ export default function ColecaoPortugal() {
               onQuantidade={alterarQuantidade}
               onFormato={alterarFormato}
               prefsKey="colecoes-pt"
+              tagsInfo={{ tags, coinTags }}
             />
           ) : (
             <ListaMoedas coins={coinsDaSerie} tenho={tenho} onAbrir={abrirFicha} />
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {seriesDaEra.map(([nome, v]) => (
-            <CartaoSerie
-              key={nome}
-              nome={nome}
-              coins={v.coins}
-              tenho={tenho}
-              onAbrir={() => setSerieSel(nome)}
-            />
-          ))}
+        <div>
+          {eraSel !== 'temas' && (
+            <div className="mb-3 flex justify-end">
+              <button
+                onClick={() => { setVerTodos('era'); setVista('tabela') }}
+                className="rounded-lg border border-mp-border px-3 py-1.5 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
+              >
+                ☰ Ver todos desta era em tabela
+              </button>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {seriesDaEra.map(([nome, v]) => (
+              <CartaoSerie
+                key={nome}
+                nome={nome}
+                coins={v.coins}
+                tenho={tenho}
+                onAbrir={() => setSerieSel(nome)}
+              />
+            ))}
+          </div>
         </div>
       )}
 
