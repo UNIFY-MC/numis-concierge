@@ -14,7 +14,21 @@ interface TabelaViewProps {
   onFormato: (row: DisplayRow, formato: FormatoColecao, ativo: boolean) => void
 }
 
-type Col = 'pais' | 'tipo' | 'moeda' | 'face' | 'ano' | 'casa' | 'estado' | 'qtd' | 'valor'
+type Col = 'pais' | 'tipo' | 'moeda' | 'metal' | 'km' | 'face' | 'ano' | 'casa' | 'peso' | 'diam' | 'estado' | 'qtd' | 'valor'
+
+// Metal em PT-PT, lido do título Maktun ("…; Gold") ou da composição.
+const METAIS_PT: Record<string, string> = {
+  gold: 'Ouro', silver: 'Prata', copper: 'Cobre', bronze: 'Bronze', brass: 'Latão',
+  nickel: 'Níquel', bimetallic: 'Bimetálica', cupronickel: 'Cuproníquel', steel: 'Aço',
+  'copper-nickel': 'Cuproníquel', billon: 'Bolhão', tin: 'Estanho', zinc: 'Zinco',
+  platinum: 'Platina', palladium: 'Paládio', 'gold-plated': 'Dourado',
+}
+function metalPt(r: DisplayRow): string {
+  const t = r.coin.composicao || r.coin.titulo || ''
+  const m = t.match(/\b(Gold-plated|Copper-Nickel|Cupronickel|Gold|Silver|Copper|Bronze|Brass|Nickel|Bi-?Metallic|Billon|Steel|Tin|Zinc|Platinum|Palladium)\b/i)
+  if (!m) return ''
+  return METAIS_PT[m[1].toLowerCase().replace('bi-metallic', 'bimetallic')] ?? m[1]
+}
 
 // Ano sempre como número limpo (4 dígitos), nunca o texto cru do `ano`
 // (que pode ter sufixos de variante: "2005 c", "2022 bebé" — esses vão à etiqueta).
@@ -37,9 +51,13 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'pais':   return r.coin.pais_nome
     case 'tipo':   return r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')
     case 'moeda':  return r.coin.comemorativa ? (r.coin.tema || r.coin.titulo || '') : (r.coin.denominacao ?? '')
+    case 'metal':  return metalPt(r)
+    case 'km':     return r.coin.km_ref ?? ''
     case 'face':   return r.coin.valor_facial ?? 0
     case 'ano':    return r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10) ?? 0
     case 'casa':   return casaEmissor(r)
+    case 'peso':   return r.coin.peso_g ?? 0
+    case 'diam':   return r.coin.diametro_mm ?? 0
     case 'estado': return estadoDe(r.item)
     case 'qtd':    return r.item?.quantidade ?? 0
     case 'valor':  return valorColecao(r.coin, r.itens)
@@ -302,9 +320,13 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
               {th('pais',   'País')}
               {th('tipo',   'Tipo')}
               {th('moeda',  'Moeda / Comemoração')}
+              {th('metal',  'Metal')}
+              {th('km',     'KM#')}
               {th('face',   'Face',   'text-right')}
               {th('ano',    'Ano')}
               {th('casa',   'Casa / Emissor')}
+              {th('peso',   'Peso',   'text-right')}
+              {th('diam',   'Diâm.',  'text-right')}
               {th('estado', 'Estado')}
               {th('qtd',    'Qtd',    'text-right')}
               {th('valor',  'Valor',  'text-right')}
@@ -313,7 +335,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
           <tbody>
             {ordenadas.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-sm text-mp-ink-faint">
+                <td colSpan={13} className="px-4 py-10 text-center text-sm text-mp-ink-faint">
                   Nenhuma moeda encontrada com os filtros actuais.
                 </td>
               </tr>
@@ -335,14 +357,25 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                   <td className="px-3 py-1.5 text-mp-ink-soft">
                     {r.coin.comemorativa ? 'Comemorativa' : (r.coin.tipo_emissao ?? 'Circulação')}
                   </td>
-                  <td className="px-3 py-1.5 max-w-[260px] truncate" title={String(valOf(r, 'moeda'))}>
-                    {valOf(r, 'moeda') || '—'}
+                  <td className="px-3 py-1.5 max-w-[260px]" title={String(valOf(r, 'moeda'))}>
+                    <span className="flex items-center gap-2">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-mp-surface-muted ring-1 ring-mp-border">
+                        {r.coin.anverso_img
+                          ? <img src={r.coin.anverso_img} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          : <span className="text-[10px] text-mp-coin-empty">⊚</span>}
+                      </span>
+                      <span className="truncate">{valOf(r, 'moeda') || '—'}</span>
+                    </span>
                   </td>
+                  <td className="px-3 py-1.5 text-mp-ink-soft whitespace-nowrap">{metalPt(r) || '—'}</td>
+                  <td className="px-3 py-1.5 text-mp-ink-faint text-[11px] whitespace-nowrap">{r.coin.km_ref || '—'}</td>
                   <td className="px-3 py-1.5 text-right">
                     {r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}
                   </td>
                   <td className="px-3 py-1.5">{anoNum(r) || r.issue.ano}</td>
                   <td className="px-3 py-1.5 text-mp-ink-soft text-[11px]">{casaEmissor(r)}</td>
+                  <td className="px-3 py-1.5 text-right text-mp-ink-soft whitespace-nowrap">{r.coin.peso_g != null ? `${r.coin.peso_g} g` : '—'}</td>
+                  <td className="px-3 py-1.5 text-right text-mp-ink-soft whitespace-nowrap">{r.coin.diametro_mm != null ? `${r.coin.diametro_mm} mm` : '—'}</td>
                   <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                     <EstadoSelector formatos={formatosComMoeda(r.itens)} onChange={(f, a) => onFormato(r, f, a)} />
                   </td>
@@ -359,11 +392,9 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
           {filtradas.length > 0 && (
             <tfoot className="sticky bottom-0 bg-mp-surface-muted border-t-2 border-mp-border">
               <tr>
-                <td colSpan={6} className="px-3 py-2 text-xs text-mp-ink-soft font-medium">
+                <td colSpan={12} className="px-3 py-2 text-xs text-mp-ink-soft font-medium">
                   {filtradas.length} moedas · {totalSet} set · {totalCad} caderneta · {totalFalta} em falta
                 </td>
-                <td />
-                <td />
                 <td className="px-3 py-2 text-right font-serif font-semibold text-mp-gold-strong">
                   {eur(totalValor)}
                 </td>
