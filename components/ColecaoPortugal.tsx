@@ -159,11 +159,18 @@ export default function ColecaoPortugal() {
   }, [series, eraSel])
 
   const coinsDaSerie = serieSel ? (series.get(serieSel)?.coins ?? []) : []
-  const rowsDaSerie = useMemo(
-    () => coinsDaSerie.map(rowDe).filter((r): r is DisplayRow => r !== null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [coinsDaSerie, issueDeCoin, itensDeIssue],
-  )
+  // A tabela mostra uma linha por ISSUE (cada ano emitido), não só a 1.ª — assim
+  // vês/geres todos os anos de cada tipo (ex. 1 Cêntimo 2002…2026).
+  const rowsDaSerie = useMemo(() => {
+    const coinById = new Map(coinsDaSerie.map((c) => [c.id, c]))
+    return issues
+      .filter((i) => coinById.has(i.catalog_coin_id))
+      .map((i) => {
+        const coin = coinById.get(i.catalog_coin_id)!
+        const itens = itensDeIssue.get(i.id) ?? []
+        return { coin, issue: i, itens, item: itemPrincipal(itens) } as DisplayRow
+      })
+  }, [coinsDaSerie, issues, itensDeIssue])
 
   if (loading) return <div className="p-8 text-mp-ink-faint">A carregar a coleção…</div>
 
