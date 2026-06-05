@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent as RMouseEvent } from 'react'
 import { estadoDe } from '@/lib/types'
-import { eur, GRADES } from '@/lib/valor'
+import { eur, GRADES, valorMercadoGrau } from '@/lib/valor'
 import { casaEmissor, casaEmissorCurto } from '@/lib/emissores'
 import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
 import { getUiPrefs, setUiPrefs } from '@/lib/catalog'
@@ -62,6 +62,9 @@ const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'km
 const FORMATO_DE_COL: Partial<Record<Col, FormatoColecao>> = { caderneta: 'carteira_fdc', bebe: 'carteira_bebe', set: 'bnc', proof: 'proof', normal: 'normal' }
 const qtdFormato = (r: DisplayRow, f: FormatoColecao) => r.itens.find((i) => i.formato_posse === f)?.quantidade ?? 0
 const qtdTotal = (r: DisplayRow) => r.itens.reduce((s, i) => s + (i.quantidade || 0), 0)
+// valor de mercado unitário no grau do exemplar principal, e total (× qtd)
+const vmUnit = (r: DisplayRow) => valorMercadoGrau(r.issue.valor_mercado, r.issue.precos_mercado, r.issue.valor_mercado_grau, r.item?.grau ?? null)
+const vmTotal = (r: DisplayRow) => qtdTotal(r) * (vmUnit(r) ?? 0)
 
 const METAIS_PT: Record<string, string> = {
   gold: 'Ouro', silver: 'Prata', copper: 'Cobre', bronze: 'Bronze', brass: 'Latão',
@@ -120,7 +123,7 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'normal': return qtdFormato(r, 'normal')
     case 'qtd':    return qtdTotal(r)
     case 'facial': return qtdTotal(r) * (r.coin.valor_facial ?? 0)
-    case 'mercado': return qtdTotal(r) * (r.issue.valor_mercado ?? 0)
+    case 'mercado': return vmTotal(r)
   }
 }
 
@@ -269,6 +272,8 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   const visiveis = useMemo(() => ordenadas.slice(paginaSegura * PAGINA_TAM, (paginaSegura + 1) * PAGINA_TAM), [ordenadas, paginaSegura])
 
   const totalValor = useMemo(() => filtradas.reduce((s, r) => s + qtdTotal(r) * (r.coin.valor_facial ?? 0), 0), [filtradas])
+  // total por VALOR DE MERCADO (ajustado ao grau) — é o total relevante da coleção
+  const totalMercado = useMemo(() => filtradas.reduce((s, r) => s + vmTotal(r), 0), [filtradas])
   const totalSet   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'set').length, [filtradas])
   const totalCad   = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'caderneta').length, [filtradas])
   const totalFalta = useMemo(() => filtradas.filter((r) => estadoDe(r.item) === 'naotem').length, [filtradas])
@@ -375,11 +380,12 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
       case 'qtd': { const t = qtdTotal(r); return <span className="font-semibold tabular-nums">{t || '—'}</span> }
       case 'facial': { const v = qtdTotal(r) * (r.coin.valor_facial ?? 0); return <span className="tabular-nums text-mp-ink-soft">{v > 0 ? eur(v) : '—'}</span> }
       case 'mercado': {
-        const u = r.issue.valor_mercado
+        const u = vmUnit(r)  // valor unitário JÁ ajustado ao grau do exemplar
         if (u == null) return <span className="tabular-nums text-mp-ink-faint">—</span>
         const t = qtdTotal(r) * u
-        const g = r.issue.valor_mercado_grau ? r.issue.valor_mercado_grau.toUpperCase() : ''
-        return <span className="tabular-nums text-mp-gold-strong" title={`${eur(u)}/un.${g ? ' (' + g + ')' : ''} · Numista`}>{t > 0 ? eur(t) : <span className="text-mp-ink-faint">{eur(u)}</span>}</span>
+        const ref = r.issue.valor_mercado_grau ? r.issue.valor_mercado_grau.toUpperCase() : ''
+        const tit = `${eur(u)}/un. no grau${ref ? ` · base ${ref}` : ''}`
+        return <span className="tabular-nums text-mp-gold-strong" title={tit}>{t > 0 ? eur(t) : <span className="text-mp-ink-faint">{eur(u)}</span>}</span>
       }
     }
   }
@@ -400,7 +406,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
           {acaoExtra}
           <span className="mr-1 hidden text-xs text-mp-ink-soft sm:inline">
             {filtradas.length}{temFiltro ? ' filtr.' : ''} · <span className="font-semibold text-mp-set">{totalSet}</span>/<span className="font-semibold text-mp-caderneta">{totalCad}</span>/{totalFalta} ·{' '}
-            <b className="font-serif text-mp-gold-strong">{eur(totalValor)}</b>
+            <b className="font-serif text-mp-gold-strong" title="Valor de mercado (ajustado ao grau)">{eur(totalMercado)}</b>
           </span>
           {temFiltro && (
             <button onClick={() => setFiltros({})}
@@ -497,7 +503,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
             <tfoot className="sticky bottom-0 border-t-2 border-mp-border bg-mp-surface-muted">
               <tr>
                 <td colSpan={colVis.length} className="px-3 py-2 text-xs font-medium text-mp-ink-soft">
-                  {filtradas.length} moedas · {totalSet} set · {totalCad} caderneta · {totalFalta} em falta · <b className="font-serif text-mp-gold-strong">{eur(totalValor)}</b> facial
+                  {filtradas.length} moedas · {totalSet} set · {totalCad} caderneta · {totalFalta} em falta · <b className="font-serif text-mp-gold-strong">{eur(totalMercado)}</b> mercado · <span className="text-mp-ink-faint">{eur(totalValor)} facial</span>
                 </td>
                 <td />
               </tr>
