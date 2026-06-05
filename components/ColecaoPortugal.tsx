@@ -51,6 +51,19 @@ export default function ColecaoPortugal() {
     for (const i of issues) if (!m.has(i.catalog_coin_id)) m.set(i.catalog_coin_id, i)
     return m
   }, [issues])
+  // nº de anos (issues) por moeda — para abrir séries multi-ano (circulação) direto na tabela
+  const nIssuesDeCoin = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const i of issues) m.set(i.catalog_coin_id, (m.get(i.catalog_coin_id) ?? 0) + 1)
+    return m
+  }, [issues])
+  // Abre uma série; se tiver muitos anos por tipo (ex. Euro·Circulação: 8×25),
+  // abre direto na TABELA (uma linha por ano), senão na lista de cartões.
+  function abrirSerie(nome: string, cs: CatalogCoin[]) {
+    setSerieSel(nome)
+    const totalAnos = cs.reduce((s, c) => s + (nIssuesDeCoin.get(c.id) ?? 1), 0)
+    setVista(cs.length > 0 && totalAnos > cs.length * 3 ? 'tabela' : 'lista')
+  }
   const itensDeIssue = useMemo(() => {
     const m = new Map<string, CollectionItem[]>()
     for (const it of col) if (it.catalog_issue_id) {
@@ -357,7 +370,7 @@ export default function ColecaoPortugal() {
                 nome={nome}
                 coins={v.coins}
                 tenho={tenho}
-                onAbrir={() => setSerieSel(nome)}
+                onAbrir={() => abrirSerie(nome, v.coins)}
               />
             ))}
           </div>
