@@ -10,6 +10,7 @@ import { getTags, getCoinTags, type Tag } from '@/lib/tags'
 import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
 import { CONTEXTO } from '@/lib/data/contexto-pt'
 import { itemPrincipal } from '@/lib/types'
+import { valorMercadoGrau, eur } from '@/lib/valor'
 import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao } from '@/lib/types'
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
 import TabelaView from './TabelaView'
@@ -71,6 +72,18 @@ export default function ColecaoPortugal() {
     }
     return m
   }, [col])
+  // valor de mercado total possuído por moeda (soma dos anos × valor no grau) — para os cards
+  const valorMercadoCoin = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const i of issues) {
+      const itens = itensDeIssue.get(i.id) ?? []
+      const qtd = itens.reduce((s, it) => s + (it.quantidade || 0), 0)
+      if (qtd <= 0) continue
+      const vm = valorMercadoGrau(i.valor_mercado, i.precos_mercado, i.valor_mercado_grau, itemPrincipal(itens)?.grau ?? null)
+      if (vm != null) m.set(i.catalog_coin_id, (m.get(i.catalog_coin_id) ?? 0) + qtd * vm)
+    }
+    return m
+  }, [issues, itensDeIssue])
 
   // DisplayRow de uma coin (issue principal + exemplares).
   function rowDe(coin: CatalogCoin): DisplayRow | null {
@@ -358,7 +371,7 @@ export default function ColecaoPortugal() {
                 {CONTEXTO[serieSel]!.contexto}
               </p>
             )}
-            <ListaMoedas coins={coinsDaSerie} tenho={tenho} onAbrir={abrirFicha} />
+            <ListaMoedas coins={coinsDaSerie} tenho={tenho} valor={valorMercadoCoin} onAbrir={abrirFicha} />
           </div>
         )
       ) : (
@@ -370,6 +383,7 @@ export default function ColecaoPortugal() {
                 nome={nome}
                 coins={v.coins}
                 tenho={tenho}
+                valor={valorMercadoCoin}
                 onAbrir={() => abrirSerie(nome, v.coins)}
               />
             ))}
@@ -389,11 +403,12 @@ function periodo(coins: CatalogCoin[]): string {
   return min === max ? `${min}` : `${min}–${max}`
 }
 
-function CartaoSerie({ nome, coins, tenho, onAbrir }: {
-  nome: string; coins: CatalogCoin[]; tenho: Set<string>; onAbrir: () => void
+function CartaoSerie({ nome, coins, tenho, valor, onAbrir }: {
+  nome: string; coins: CatalogCoin[]; tenho: Set<string>; valor: Map<string, number>; onAbrir: () => void
 }) {
   const meus = coins.filter((c) => tenho.has(c.id)).length
   const pct = coins.length ? Math.round((meus / coins.length) * 100) : 0
+  const valorSerie = coins.reduce((s, c) => s + (valor.get(c.id) ?? 0), 0)
   const retrato = RETRATOS[nome]
   // sem retrato (séries não-reinado, ou reinados medievais sem foto): usa a foto
   // de uma moeda representativa da série (a de maior valor facial com imagem).
@@ -421,6 +436,9 @@ function CartaoSerie({ nome, coins, tenho, onAbrir }: {
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-mp-surface-muted">
         <div className="h-full rounded-full bg-mp-set" style={{ width: `${pct}%` }} />
       </div>
+      {valorSerie > 0 && (
+        <span className="mt-2 font-serif text-sm font-semibold text-mp-gold-strong" title="Valor de mercado do que tens nesta série">{eur(valorSerie)}</span>
+      )}
     </button>
   )
 }
@@ -454,8 +472,8 @@ function Face({ url }: { url: string | null }) {
   )
 }
 
-function ListaMoedas({ coins, tenho, onAbrir }: {
-  coins: CatalogCoin[]; tenho: Set<string>; onAbrir: (c: CatalogCoin) => void
+function ListaMoedas({ coins, tenho, valor, onAbrir }: {
+  coins: CatalogCoin[]; tenho: Set<string>; valor: Map<string, number>; onAbrir: (c: CatalogCoin) => void
 }) {
   const ordenados = [...coins].sort((a, b) => (a.ano_inicio ?? 0) - (b.ano_inicio ?? 0))
   return (
@@ -484,14 +502,19 @@ function ListaMoedas({ coins, tenho, onAbrir }: {
                   {c.ano_inicio ?? '—'}{metal ? ` · ${metal}` : ''}
                 </p>
               </div>
-              <span
-                className={
-                  'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
-                  (meu ? 'bg-mp-set text-white' : 'bg-mp-surface-muted text-mp-ink-faint')
-                }
-              >
-                {meu ? 'tenho' : 'falta'}
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span
+                  className={
+                    'rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
+                    (meu ? 'bg-mp-set text-white' : 'bg-mp-surface-muted text-mp-ink-faint')
+                  }
+                >
+                  {meu ? 'tenho' : 'falta'}
+                </span>
+                {(valor.get(c.id) ?? 0) > 0 && (
+                  <span className="font-serif text-xs font-semibold text-mp-gold-strong">{eur(valor.get(c.id)!)}</span>
+                )}
+              </div>
             </button>
           )
         })}

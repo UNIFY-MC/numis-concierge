@@ -71,14 +71,23 @@ function representativo(j) {
 async function main() {
   if (!KEY) { console.error('❌ falta NUMISTA_API_KEY'); process.exit(1) }
 
-  // issues da coleção (quantidade>0) com numista_issue_id + numista_id do coin
-  const { data, error } = await supabase
-    .from('catalog_issues')
-    .select('id, numista_issue_id, valor_mercado_data, catalog_coins!inner(numista_id), collection!inner(quantidade)')
-    .not('numista_issue_id', 'is', null)
-    .not('catalog_coins.numista_id', 'is', null)
-    .gt('collection.quantidade', 0)
-  if (error) { console.error('❌', error.message); process.exit(1) }
+  // issues da coleção (quantidade>0) por precificar (valor_mercado null) com
+  // numista_issue_id + numista_id do coin — PAGINADO (PostgREST corta nos 1000).
+  const data = []
+  for (let from = 0; ; from += 1000) {
+    const { data: pg, error } = await supabase
+      .from('catalog_issues')
+      .select('id, numista_issue_id, valor_mercado_data, catalog_coins!inner(numista_id, familia, valor_facial), collection!inner(quantidade)')
+      .not('numista_issue_id', 'is', null)
+      .not('catalog_coins.numista_id', 'is', null)
+      .gt('collection.quantidade', 0)
+      .is('valor_mercado', null)
+      .order('id').range(from, from + 999)
+    if (error) { console.error('❌', error.message); process.exit(1) }
+    if (!pg?.length) break
+    data.push(...pg)
+    if (pg.length < 1000) break
+  }
 
   // dedupe + filtra desatualizados
   const corte = Date.now() - 90 * 864e5
@@ -87,8 +96,14 @@ async function main() {
   for (const it of data || []) {
     if (vistos.has(it.id)) continue; vistos.add(it.id)
     const recente = it.valor_mercado_data && Date.parse(it.valor_mercado_data) > corte
-    if (!recente) alvos.push({ issueRow: it.id, typeId: it.catalog_coins.numista_id, issueId: it.numista_issue_id })
+    if (!recente) alvos.push({
+      issueRow: it.id, typeId: it.catalog_coins.numista_id, issueId: it.numista_issue_id,
+      fam: it.catalog_coins.familia, facial: Number(it.catalog_coins.valor_facial) || 0,
+    })
   }
+  // prioriza as mais valiosas: coleção → comemorativas → circulação; maior facial primeiro.
+  const ordemFam = { euro_colecao: 0, euro_comemorativa: 1, euro_circulacao: 2 }
+  alvos.sort((a, b) => (ordemFam[a.fam] ?? 3) - (ordemFam[b.fam] ?? 3) || b.facial - a.facial)
   console.log(`${alvos.length} issues da coleção a precificar (limite ${LIMIT === Infinity ? 'todos' : LIMIT}).`)
 
   if (PROBE) {
