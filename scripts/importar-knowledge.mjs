@@ -30,6 +30,9 @@ const DOCS = [
     titulo: 'De Lisboa a Goa — Moedas do Império Português na Ásia (séc. XVI-XVIII)', tags: ['INCM', 'Índia Portuguesa', 'Macau', 'Goa', 'Ásia', 'descobrimentos'] },
   { ficheiro: 'INCM 25 - paines exposicao2.txt', slug: 'incm-paineis-exposicao', categoria: 'exposicao',
     titulo: 'Painéis de exposição — Museu Casa da Moeda', tags: ['INCM', 'museu', 'exposição'] },
+  { ficheiro: 'BP- Caderno 8 - Notas e Moedas de Euro.txt', slug: 'bp-caderno8-euro', categoria: 'referencia',
+    titulo: 'Notas e Moedas de Euro (Banco de Portugal — Caderno 8)',
+    tags: ['Banco de Portugal', 'euro', 'curso legal', 'segurança', 'contrafação', 'faces nacionais'] },
 ]
 
 // limpeza ligeira do texto bruto do pdftotext (linhas vazias repetidas, números de página soltos)

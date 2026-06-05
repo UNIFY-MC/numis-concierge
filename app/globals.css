@@ -6,39 +6,72 @@
 
 :root {
   /* Fundos */
-  --mp-bg:            #f2ede2;  /* fundo creme quente da app */
-  --mp-surface:       #fbf8f1;  /* cards / superfícies elevadas */
-  --mp-surface-muted: #efe9dc;  /* chips, linhas alternadas */
-  --mp-border:        #e3dac8;  /* contornos suaves */
+  --mp-bg:            #f7f3ec;  /* fundo creme quente da app */
+  --mp-surface:       #fffdf8;  /* cards / superfícies elevadas */
+  --mp-surface-muted: #f1eadf;  /* chips, linhas alternadas */
+  --mp-border:        #e8dfd0;  /* contornos suaves */
 
   /* Marca — dourado/âmbar */
-  --mp-gold:          #b8893b;  /* destaque de marca, títulos */
-  --mp-gold-strong:   #9a6f2a;  /* valores, hover */
-  --mp-gold-soft:     #d8b774;  /* realces claros */
+  --mp-gold:          #d79a2e;  /* dourado de moeda */
+  --mp-gold-strong:   #9f6f25;  /* valores, hover */
+  --mp-gold-soft:     #f1d494;  /* realces claros */
+
+  /* Primário Numis — ações, links, nav activa e energia do dashboard */
+  --mp-primary:        #7651e8;
+  --mp-primary-strong: #5636c7;
+  --mp-primary-soft:   #eee7ff;
+  --mp-primary-mid:    #9a6af0;
+  --mp-primary-warm:   #df8a3d;
+  --mp-hero-grad:
+    radial-gradient(circle at 70% 18%, rgba(238, 231, 255, 0.82) 0%, rgba(238, 231, 255, 0.34) 30%, transparent 58%),
+    linear-gradient(105deg, #fffaf5 0%, #fff6f0 24%, #f9f0ff 54%, #eee7ff 100%);
+  --mp-title-grad: linear-gradient(90deg, var(--mp-primary) 0%, var(--mp-primary-mid) 42%, var(--mp-primary-warm) 100%);
 
   /* Texto */
-  --mp-ink:           #2c261c;  /* texto principal (quente, não preto) */
-  --mp-ink-soft:      #6b6253;  /* subtítulos, metadata */
-  --mp-ink-faint:     #9a8f7c;  /* labels, anos inativos */
+  --mp-ink:           #211b16;  /* texto principal (quente, não preto) */
+  --mp-ink-soft:      #6d665d;  /* subtítulos, metadata */
+  --mp-ink-faint:     #a79e91;  /* labels, anos inativos */
 
   /* Estados da coleção */
-  --mp-set:           #2f9e6f;  /* verde — em set */
-  --mp-set-bg:        #e3f3ea;
-  --mp-caderneta:     #3b7fd4;  /* azul — em caderneta */
-  --mp-caderneta-bg:  #e4eefb;
-  --mp-falta:         #a9703f;  /* cobre/castanho — não tem */
-  --mp-falta-bg:      #f0e6da;
+  --mp-set:           #24aa73;  /* verde — em set */
+  --mp-set-bg:        #e6f6ee;
+  --mp-caderneta:     #2f85dc;  /* azul — em caderneta */
+  --mp-caderneta-bg:  #e5f0fc;
+  --mp-falta:         #a88454;  /* cobre/castanho — não tem */
+  --mp-falta-bg:      #f3eadf;
   --mp-bebe:          #b07cc6;  /* lilás — caderneta bebé */
   --mp-bebe-bg:       #f1e7f6;
 
   /* Discos de moeda */
-  --mp-coin:          #b98c5a;  /* cobre/bronze da moeda */
-  --mp-coin-dark:     #8a6238;
-  --mp-coin-empty:    #d8cfc0;  /* moeda em falta (contorno claro) */
+  --mp-coin:          #d79a2e;  /* cobre/bronze da moeda */
+  --mp-coin-dark:     #9f6f25;
+  --mp-coin-empty:    #d8d0c2;  /* moeda em falta (contorno claro) */
 
   /* Tipografia */
   --mp-font-serif: var(--font-serif, ui-serif, Georgia, "Times New Roman", serif);
   --mp-font-sans:  var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+
+  /* shadcn/ui, quando usado, herda a identidade Moedas do Pinto. */
+  --radius: 1.125rem;            /* 18px — base dos botões */
+  --background:            var(--mp-bg);
+  --foreground:            var(--mp-ink);
+  --card:                  var(--mp-surface);
+  --card-foreground:       var(--mp-ink);
+  --popover:               var(--mp-surface);
+  --popover-foreground:    var(--mp-ink);
+  --primary:               var(--mp-primary);
+  --primary-foreground:    #ffffff;
+  --secondary:             var(--mp-primary-soft);
+  --secondary-foreground:  var(--mp-primary-strong);
+  --muted:                 var(--mp-surface-muted);
+  --muted-foreground:      var(--mp-ink-soft);
+  --accent:                var(--mp-primary-soft);
+  --accent-foreground:     var(--mp-primary-strong);
+  --destructive:           var(--mp-falta);
+  --destructive-foreground:#ffffff;
+  --border:                var(--mp-border);
+  --input:                 var(--mp-border);
+  --ring:                  var(--mp-primary);
 }
 
 @theme inline {
@@ -49,6 +82,11 @@
   --color-mp-gold:          var(--mp-gold);
   --color-mp-gold-strong:   var(--mp-gold-strong);
   --color-mp-gold-soft:     var(--mp-gold-soft);
+  --color-mp-primary:       var(--mp-primary);
+  --color-mp-primary-strong:var(--mp-primary-strong);
+  --color-mp-primary-soft:  var(--mp-primary-soft);
+  --color-mp-primary-mid:   var(--mp-primary-mid);
+  --color-mp-primary-warm:  var(--mp-primary-warm);
   --color-mp-ink:           var(--mp-ink);
   --color-mp-ink-soft:      var(--mp-ink-soft);
   --color-mp-ink-faint:     var(--mp-ink-faint);
@@ -63,6 +101,27 @@
   --color-mp-coin:          var(--mp-coin);
   --color-mp-coin-dark:     var(--mp-coin-dark);
   --color-mp-coin-empty:    var(--mp-coin-empty);
+
+  /* shadcn/ui — utilities bg-primary, text-muted-foreground, border-border, … */
+  --color-background:             var(--background);
+  --color-foreground:             var(--foreground);
+  --color-card:                   var(--card);
+  --color-card-foreground:        var(--card-foreground);
+  --color-popover:                var(--popover);
+  --color-popover-foreground:     var(--popover-foreground);
+  --color-primary:                var(--primary);
+  --color-primary-foreground:     var(--primary-foreground);
+  --color-secondary:              var(--secondary);
+  --color-secondary-foreground:   var(--secondary-foreground);
+  --color-muted:                  var(--muted);
+  --color-muted-foreground:       var(--muted-foreground);
+  --color-accent:                 var(--accent);
+  --color-accent-foreground:      var(--accent-foreground);
+  --color-destructive:            var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border:                 var(--border);
+  --color-input:                  var(--input);
+  --color-ring:                   var(--ring);
 
   --font-serif: var(--mp-font-serif);
   --font-sans:  var(--mp-font-sans);

@@ -37,12 +37,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function api(path, { cacheKey } = {}) {
   if (cacheKey) { const f = join(CACHE, cacheKey + '.json'); if (existsSync(f)) return JSON.parse(readFileSync(f, 'utf8')) }
-  await sleep(750); reqCount++
-  const res = await fetch(API + path, { headers: { 'Numista-API-Key': NUMISTA_KEY } })
-  if (!res.ok) throw new Error(`${res.status} ${path}`)
-  const json = await res.json()
-  if (cacheKey) { if (!existsSync(CACHE)) mkdirSync(CACHE, { recursive: true }); writeFileSync(join(CACHE, cacheKey + '.json'), JSON.stringify(json)) }
-  return json
+  // Retry com backoff em 429 (rate limit da Numista) — espera e tenta de novo.
+  for (let tent = 0; ; tent++) {
+    await sleep(900); reqCount++
+    const res = await fetch(API + path, { headers: { 'Numista-API-Key': NUMISTA_KEY } })
+    if (res.status === 429) {
+      if (tent >= 6) throw new Error(`429 persistente ${path}`)
+      const espera = 15000 * (tent + 1)
+      console.log(`   ⏳ 429 — espero ${espera / 1000}s (tentativa ${tent + 1})`)
+      await sleep(espera)
+      continue
+    }
+    if (!res.ok) throw new Error(`${res.status} ${path}`)
+    const json = await res.json()
+    if (cacheKey) { if (!existsSync(CACHE)) mkdirSync(CACHE, { recursive: true }); writeFileSync(join(CACHE, cacheKey + '.json'), JSON.stringify(json)) }
+    return json
+  }
 }
 
 const pic = (s) => s?.picture || s?.thumbnail || null

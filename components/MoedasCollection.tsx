@@ -265,13 +265,25 @@ export default function MoedasCollection() {
   async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
     const qtd = Math.max(0, novaQtd)
     const alvo = row.item
-    const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'set'
+    const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'bnc'
     const saved = await upsertCollectionItem({
       catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
       quantidade: qtd, formatoPosse: formato,
       casaMoeda: alvo?.casa_moeda ?? null, grau: alvo?.grau ?? null,
       valorBase: alvo?.valor_base ?? null, foto: alvo?.foto1 ?? null,
       notaPrivada: alvo?.nota_privada ?? null,
+    })
+    setRows((prev) => aplicarSaved(prev, row.issue.id, saved))
+  }
+  // grau/qualidade inline (exemplar principal)
+  async function alterarGrau(row: DisplayRow, grau: string) {
+    const alvo = row.item
+    if (!alvo) return
+    const saved = await upsertCollectionItem({
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: Math.max(1, alvo.quantidade), formatoPosse: (alvo.formato_posse as FormatoColecao | undefined) ?? 'bnc',
+      casaMoeda: alvo.casa_moeda ?? null, grau: grau || null,
+      valorBase: alvo.valor_base ?? null, foto: alvo.foto1 ?? null, notaPrivada: alvo.nota_privada ?? null,
     })
     setRows((prev) => aplicarSaved(prev, row.issue.id, saved))
   }
@@ -362,7 +374,7 @@ export default function MoedasCollection() {
       for (const d of dados) {
         const r = byIssue.get(d.catalog_issue_id)
         if (!r) continue
-        const formato = d.estado === 'caderneta' ? 'caderneta' : d.estado === 'set' ? 'set' : null
+        const formato = d.estado === 'caderneta' ? 'carteira_fdc' : d.estado === 'set' ? 'bnc' : null
         await upsertCollectionItem({
           catalogCoinId: r.coin.id,
           catalogIssueId: r.issue.id,
@@ -444,6 +456,7 @@ export default function MoedasCollection() {
           onQuantidade={alterarQuantidade}
           onFormato={alterarFormato}
           onFormatoQtd={alterarFormatoQtd}
+          onGrau={alterarGrau}
           prefsKey="moedas"
         />
       ) : paisAberto ? (

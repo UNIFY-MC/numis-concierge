@@ -73,6 +73,12 @@ export interface CatalogIssue {
   html_qf: number
   html_verde: boolean
   notas: string | null
+  valor_mercado: number | null            // valor de mercado representativo (grau alto)
+  valor_mercado_grau: string | null
+  valor_mercado_moeda: string | null
+  valor_mercado_data: string | null
+  valor_mercado_fonte: string | null
+  precos_mercado: Record<string, number> | null  // mapa grau→valor
   created_at: string
 }
 
@@ -86,14 +92,25 @@ export interface DisplayRow {
   itens: CollectionItem[]
 }
 
-// Formatos de posse com que uma moeda pode existir em simultâneo (S/C/B).
-export type FormatoColecao = 'set' | 'caderneta' | 'caderneta_bebe'
-export const FORMATOS_COLECAO: { v: FormatoColecao; label: string; curto: string }[] = [
-  { v: 'set', label: 'Set', curto: 'S' },
-  { v: 'caderneta', label: 'Caderneta', curto: 'C' },
-  { v: 'caderneta_bebe', label: 'Caderneta bebé', curto: 'B' },
-]
-const PRIORIDADE: FormatoColecao[] = ['set', 'caderneta', 'caderneta_bebe']
+// Acabamentos/formatos com que uma moeda pode existir em simultâneo. Dois contextos:
+//  • Conjunto/Série Anual (circulação) → Carteira FDC, Carteira Bebé, BNC, Proof.
+//  • Moeda avulsa (comemorativa/coleção/histórica) → acabamento Normal, BNC, Proof.
+// (Migrado: 'set'→'bnc', 'caderneta'→'carteira_fdc'.)
+export type FormatoColecao = 'carteira_fdc' | 'carteira_bebe' | 'bnc' | 'proof' | 'normal'
+export const FORMATO_LABEL: Record<FormatoColecao, string> = {
+  carteira_fdc: 'Carteira FDC', carteira_bebe: 'Carteira Bebé', bnc: 'BNC', proof: 'Proof', normal: 'Normal',
+}
+export const FORMATOS_CONJUNTO: FormatoColecao[] = ['carteira_fdc', 'carteira_bebe', 'bnc', 'proof']
+export const FORMATOS_AVULSA: FormatoColecao[] = ['normal', 'bnc', 'proof']
+// Formatos relevantes para uma moeda, conforme seja conjunto anual ou avulsa.
+export function formatosDe(familia: string | null): FormatoColecao[] {
+  return familia === 'euro_circulacao' ? FORMATOS_CONJUNTO : FORMATOS_AVULSA
+}
+// Todos os formatos possíveis (para inicializar estado/iterações).
+export const FORMATOS_COLECAO: { v: FormatoColecao; label: string }[] =
+  (['carteira_fdc', 'carteira_bebe', 'bnc', 'proof', 'normal'] as FormatoColecao[]).map((v) => ({ v, label: FORMATO_LABEL[v] }))
+// Prioridade do exemplar "principal" (resumo): acabamento mais alto primeiro.
+const PRIORIDADE: FormatoColecao[] = ['proof', 'bnc', 'normal', 'carteira_fdc', 'carteira_bebe']
 
 // Exemplar principal (o de maior prioridade com quantidade > 0), para o resumo visual.
 export function itemPrincipal(itens: CollectionItem[]): CollectionItem | null {
@@ -117,7 +134,7 @@ export function formatosComMoeda(itens: CollectionItem[]): Set<FormatoColecao> {
 }
 
 export const FORMATOS_POSSE = [
-  'set', 'caderneta', 'carteira', 'circulacao', 'proof', 'slab', 'outro',
+  'carteira_fdc', 'carteira_bebe', 'bnc', 'proof', 'normal', 'circulacao', 'slab', 'outro',
 ] as const
 
 // Agregado por país (para a grelha e a vista de valor)
@@ -138,7 +155,8 @@ export type Estado = 'set' | 'caderneta' | 'naotem'
 
 export function estadoDe(item: CollectionItem | null): Estado {
   if (!item || item.quantidade <= 0) return 'naotem'
-  return item.formato_posse === 'caderneta' ? 'caderneta' : 'set'
+  // 'caderneta' (azul) = carteiras FDC/Bebé; 'set' (verde) = BNC/Proof e avulsas.
+  return (item.formato_posse === 'carteira_fdc' || item.formato_posse === 'carteira_bebe') ? 'caderneta' : 'set'
 }
 
 // Denominação curta a partir do valor facial (1c … 2€); fallback para comemorativas
@@ -161,7 +179,7 @@ export interface CollectionItem {
   catalog_issue_id: string | null
   user_id: string | null
   quantidade: number
-  formato_posse: 'set' | 'caderneta' | 'caderneta_bebe' | 'carteira' | 'circulacao' | 'proof' | 'slab' | 'outro' | null
+  formato_posse: 'carteira_fdc' | 'carteira_bebe' | 'bnc' | 'proof' | 'normal' | 'circulacao' | 'slab' | 'outro' | null
   casa_moeda: string | null
   grau: string | null
   grau_sistema: 'Sheldon' | 'Europeu' | 'Simplificado' | null

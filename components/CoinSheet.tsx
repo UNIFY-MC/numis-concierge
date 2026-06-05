@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { denomCurta, FORMATOS_COLECAO } from '@/lib/types'
+import { denomCurta, FORMATOS_COLECAO, FORMATO_LABEL, formatosDe } from '@/lib/types'
 import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
 import type { DisplayRow, Estado, FormatoColecao, CollectionItem } from '@/lib/types'
 import CoinDisc from './CoinDisc'
@@ -29,9 +29,11 @@ interface CoinSheetProps {
 interface EstadoFormato { ativo: boolean; qtd: number; grau: string; valor: string }
 
 const FORMATO_COR: Record<FormatoColecao, string> = {
-  set: 'border-mp-set bg-mp-set-bg text-mp-set',
-  caderneta: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta',
-  caderneta_bebe: 'border-mp-gold bg-mp-falta-bg text-mp-gold-strong',
+  carteira_fdc: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta',
+  carteira_bebe: 'border-mp-gold bg-mp-falta-bg text-mp-gold-strong',
+  bnc: 'border-mp-set bg-mp-set-bg text-mp-set',
+  proof: 'border-mp-gold bg-mp-surface-muted text-mp-gold-strong',
+  normal: 'border-mp-set bg-mp-set-bg text-mp-set',
 }
 
 export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
@@ -66,13 +68,17 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const ativos = FORMATOS_COLECAO.filter((f) => form[f.v].ativo)
+  // Formatos relevantes conforme a moeda: conjunto anual (carteiras+BNC+Proof) vs
+  // avulsa (Normal/BNC/Proof). É isto que se mostra e edita.
+  const visiveis = formatosDe(row.coin.familia)
+  const ativos = visiveis.filter((v) => form[v].ativo)
   const tenho = ativos.length > 0
-  const estimado = ativos.reduce((s, f) => {
-    const st = form[f.v]
+  const estimado = ativos.reduce((s, v) => {
+    const st = form[v]
     return s + Math.max(1, st.qtd) * (parseFloat(st.valor) || 0) * gradeMult(st.grau)
   }, 0)
-  const estadoDisco: Estado = form.set.ativo ? 'set' : (form.caderneta.ativo || form.caderneta_bebe.ativo) ? 'caderneta' : 'naotem'
+  const estadoDisco: Estado = (form.bnc.ativo || form.proof.ativo || form.normal.ativo) ? 'set'
+    : (form.carteira_fdc.ativo || form.carteira_bebe.ativo) ? 'caderneta' : 'naotem'
 
   const { peso_g, diametro_mm, composicao, km_ref, schon_ref, anverso_desc, reverso_desc, orla_desc } = row.coin
   const fotoUser = row.item?.foto1 || null
@@ -96,14 +102,14 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
   async function guardar() {
     setSaving(true)
     try {
-      const formatos = ativos.map((f) => ({
-        formato: f.v,
-        quantidade: Math.max(1, form[f.v].qtd),
-        grau: form[f.v].grau,
-        valorBase: parseFloat(form[f.v].valor) || null,
+      const formatos = ativos.map((v) => ({
+        formato: v,
+        quantidade: Math.max(1, form[v].qtd),
+        grau: form[v].grau,
+        valorBase: parseFloat(form[v].valor) || null,
       }))
       const tinha = new Set(row.itens.filter((i) => i.quantidade > 0).map((i) => i.formato_posse))
-      const removidos = FORMATOS_COLECAO.filter((f) => !form[f.v].ativo && tinha.has(f.v)).map((f) => f.v)
+      const removidos = visiveis.filter((v) => !form[v].ativo && tinha.has(v))
       await onSave({
         formatos, removidos,
         casaMoeda: casaMoeda || null,
@@ -183,11 +189,14 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           </div>
         )}
 
-        {/* Formatos de posse — uma moeda pode estar em vários (S/C/B), cada um o seu exemplar. */}
+        {/* Formatos/acabamento — conjunto anual (carteiras/BNC/Proof) ou avulsa (Normal/BNC/Proof). */}
         <div className="mb-4">
-          <span className={lbl}>Formatos de posse — marca em quais a tens</span>
+          <span className={lbl}>
+            {row.coin.familia === 'euro_circulacao' ? 'Formato do conjunto — marca em quais a tens' : 'Acabamento — marca em quais a tens'}
+          </span>
           <div className="space-y-2">
-            {FORMATOS_COLECAO.map(({ v, label }) => {
+            {visiveis.map((v) => {
+              const label = FORMATO_LABEL[v]
               const st = form[v]
               return (
                 <div key={v} className={'rounded-lg border ' + (st.ativo ? 'border-mp-border' : 'border-mp-border/60')}>

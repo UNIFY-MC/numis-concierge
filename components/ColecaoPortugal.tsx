@@ -104,12 +104,24 @@ export default function ColecaoPortugal() {
   }
   async function alterarQuantidade(row: DisplayRow, novaQtd: number) {
     const alvo = row.item
-    const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'set'
+    const formato = (alvo?.formato_posse as FormatoColecao | undefined) ?? 'bnc'
     const saved = await upsertCollectionItem({
       catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
       quantidade: Math.max(0, novaQtd), formatoPosse: formato,
       casaMoeda: alvo?.casa_moeda ?? null, grau: alvo?.grau ?? null,
       valorBase: alvo?.valor_base ?? null, foto: alvo?.foto1 ?? null,
+    })
+    aplicaCol(saved)
+  }
+  // grau/qualidade inline (no exemplar principal já possuído)
+  async function alterarGrau(row: DisplayRow, grau: string) {
+    const alvo = row.item
+    if (!alvo) return
+    const saved = await upsertCollectionItem({
+      catalogCoinId: row.coin.id, catalogIssueId: row.issue.id,
+      quantidade: Math.max(1, alvo.quantidade), formatoPosse: (alvo.formato_posse as FormatoColecao | undefined) ?? 'bnc',
+      casaMoeda: alvo.casa_moeda ?? null, grau: grau || null,
+      valorBase: alvo.valor_base ?? null, foto: alvo.foto1 ?? null,
     })
     aplicaCol(saved)
   }
@@ -305,6 +317,7 @@ export default function ColecaoPortugal() {
             onQuantidade={alterarQuantidade}
             onFormato={alterarFormato}
             onFormatoQtd={alterarFormatoQtd}
+            onGrau={alterarGrau}
             prefsKey="colecoes-pt"
             tagsInfo={{ tags, coinTags }}
             titulo={tituloTabela}

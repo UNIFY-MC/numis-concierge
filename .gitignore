@@ -64,3 +64,14 @@ maktun-fotos.json
 
 # Publicações INCM (grandes, locais)
 assets/books/
+
+# config local do agente
+.claude/
+# ficheiros privados da coleção (xlsx do pai + revisões geradas)
+assets/coleçaodadospai/
+# dados temporários dos scripts de importação
+scripts/.escudos.json
+scripts/.escudos-uncertos.json
+scripts/.escudos-revisao.txt
+scripts/.euro-coverage.json
+scripts/.euro-faltam.json
