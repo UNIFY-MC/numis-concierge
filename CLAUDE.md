@@ -80,7 +80,7 @@ hardcoded** (proibido `bg-gray-*`, `text-amber-*`, etc.).
 - Estados: set = `mp-set` (verde), caderneta = `mp-caderneta` (azul), não tem = `mp-falta` (cobre).
   Aplicar nos chips, dots e barras multicolor.
 - Tipografia: títulos e números grandes usam serifa (`font-serif` → Fraunces via next/font);
-  corpo usa `font-sans` (Outfit). Variáveis ligadas em `app/layout.tsx`.
+  corpo usa `font-sans` (Inter). Variáveis ligadas em `app/layout.tsx`.
 - Excepções neutras permitidas: `text-white` sobre dourado, `bg-black/40` no scrim de modais.
 
 ## Autenticação (estado actual)

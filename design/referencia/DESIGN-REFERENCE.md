@@ -9,7 +9,7 @@
 - Tema **creme quente + dourado** (tokens `--mp-*` em `app/globals.css`).
 - Título "Moedas do **Pinto**" — "Pinto" em dourado; logo circular dourado (moeda) à esquerda.
 - Subtítulo: "Coleção por país · colunas por ano · set · caderneta · não tem".
-- Títulos/números grandes em **serifa** (Fraunces); corpo em sans (Outfit).
+- Títulos/números grandes em **serifa** (Fraunces); corpo em sans (Inter).
 
 ## 1. Barra de estatísticas (5 cards)
 Cards `bg-mp-surface`, número grande em serifa:
