@@ -5,6 +5,15 @@
 
 Segue as convenções globais em ~/.claude/CLAUDE.md.
 
+## Contexto e memória (ler quando relevante)
+- `Context.md` — estado atual / quem é quem.
+- `connections.md` — integrações/MCP (o que lê/escreve). Chaves só no `.env`.
+- `guardrails.md` — o que o agente NUNCA faz sozinho (gate antes de automatizar).
+- `learnings.md` — porquês duráveis. `decisions/` — decisões estruturais datadas.
+- `design/DESIGN.md` — fonte de verdade visual (espelho de `app/globals.css`).
+- `app/showcase/page.tsx` — validação da fundação (`/showcase`).
+- `progress/` — diário por sessão.
+
 ## Módulos
 - `lib/catalog.ts` — ÚNICA fonte de queries ao Supabase (catálogo + colecção)
 - `lib/data/catalog.ts` — catálogo estático extraído do HTML (4738 entradas, NÃO editar à mão; regenerar com `scripts/parse-html-catalog.mjs`)
