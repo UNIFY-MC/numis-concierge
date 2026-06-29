@@ -192,9 +192,15 @@ export async function upsertCollectionItem(input: CollectionUpsert): Promise<Col
     return data
   }
 
+  // Novo exemplar: carimba o dono (RLS exige user_id = auth.uid() na inserção).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Sessão inválida — inicia sessão para editar a colecção.')
+
   const { data, error } = await supabase
     .from('collection')
-    .insert(fields)
+    .insert({ ...fields, user_id: user.id })
     .select()
     .single()
   if (error) throw error

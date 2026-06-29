@@ -1,17 +1,12 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { SESSION_COOKIE, isValidSession } from '@/lib/auth-gate'
+import { type NextRequest } from 'next/server'
+import { updateSession } from '@/lib/supabase-middleware'
 
-export async function middleware(req: NextRequest) {
-  const ok = await isValidSession(req.cookies.get(SESSION_COOKIE)?.value)
-  if (ok) return NextResponse.next()
-
-  const url = req.nextUrl.clone()
-  url.pathname = '/login'
-  url.search = ''
-  return NextResponse.redirect(url)
+// Auth Supabase (Google OAuth): refresca a sessão e protege tudo exceto /login,
+// /auth/* e assets. Substitui o gate de password (Passo C, decisions/0002).
+export async function middleware(request: NextRequest) {
+  return updateSession(request)
 }
 
-// Protege tudo excepto a página de login, internos do Next e ficheiros estáticos.
 export const config = {
-  matcher: ['/((?!login|_next/static|_next/image|favicon.ico|.*\\.).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.).*)'],
 }
