@@ -18,7 +18,9 @@ drop policy if exists "TEMP anon le collection"        on numis.collection;
 drop policy if exists "TEMP anon insere collection"    on numis.collection;
 drop policy if exists "TEMP anon actualiza collection" on numis.collection;
 
-revoke select, insert, update on numis.collection from anon;
+-- revoke all (não só select/insert/update): limpa também grants residuais de um
+-- 'grant all to anon' antigo (DELETE/TRUNCATE/REFERENCES/TRIGGER) — defesa em profundidade.
+revoke all on numis.collection from anon;
 
 -- As políticas originais (auth.uid() = user_id) da migration 005 permanecem
 -- e voltam a ser as únicas em vigor.
