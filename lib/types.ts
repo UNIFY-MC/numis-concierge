@@ -79,6 +79,8 @@ export interface CatalogIssue {
   valor_mercado_data: string | null
   valor_mercado_fonte: string | null
   precos_mercado: Record<string, number> | null  // mapa grau→valor
+  raridade: string | null                  // 'R' | 'RR' | 'RRR' | texto curto
+  raridade_nota: string | null             // referência (Gomes/Vaz) + nº conhecido
   created_at: string
 }
 

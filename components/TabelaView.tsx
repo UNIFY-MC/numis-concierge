@@ -333,7 +333,19 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
       case 'schon': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.schon_ref || '—'}</span>
       case 'numista': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.numista_id || '—'}</span>
       case 'face': return <span className="whitespace-nowrap">{r.coin.valor_facial != null ? eur(r.coin.valor_facial) : '—'}</span>
-      case 'ano': return anoNum(r) || r.issue.ano
+      case 'ano': return (
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          {anoNum(r) || r.issue.ano}
+          {r.issue.raridade && (
+            <span
+              title={r.issue.raridade_nota ?? 'Raridade'}
+              className="rounded bg-mp-gold/15 px-1 py-px text-[9px] font-bold tracking-wide text-mp-gold-strong"
+            >
+              {r.issue.raridade}
+            </span>
+          )}
+        </span>
+      )
       case 'casa': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{casaEmissorCurto(r)}</span>
       case 'mintmark': return <span className="text-mp-ink-soft">{r.coin.mintmark || r.issue.mintmark_variante || '—'}</span>
       case 'peso': return <span className="whitespace-nowrap text-mp-ink-soft">{r.coin.peso_g != null ? `${r.coin.peso_g} g` : '—'}</span>
