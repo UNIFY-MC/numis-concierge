@@ -126,6 +126,12 @@ async function main() {
         valor_mercado_moeda: 'EUR', valor_mercado_fonte: 'Numista',
         valor_mercado_data: new Date().toISOString(),
       }).eq('id', a.issueRow)
+      // Histórico append-only (migration 017): permite "evolução de preço" ao longo do tempo.
+      if (melhor != null) {
+        await supabase.from('precos_mercado_hist').insert({
+          catalog_issue_id: a.issueRow, grau, valor: melhor, moeda: 'EUR', fonte: 'Numista',
+        })
+      }
       feitos++
       if (feitos % 25 === 0) console.log(`  …${feitos}`)
     } catch (e) {

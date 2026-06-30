@@ -1,0 +1,44 @@
+name: Sincronizar catálogo e preços
+
+# Motor de carregamento (research 2026-06-30): corre uma vez por mês, quando a
+# quota Numista (2000/mês) reseta. Reusa os scripts .mjs offline — nada em runtime.
+# Secrets necessários no repo (Settings → Secrets and variables → Actions):
+#   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NUMISTA_API_KEY
+on:
+  schedule:
+    - cron: '0 3 1 * *' # dia 1 de cada mês, 03:00 UTC
+  workflow_dispatch: {} # permite correr à mão a partir do separador Actions
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NUMISTA_API_KEY: ${{ secrets.NUMISTA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+
+      # 1) INCM — emissões PT oficiais (Shopify público, ZERO quota Numista)
+      - name: INCM (catálogo de moedas)
+        run: node scripts/importar-incm.mjs --apply
+
+      # 2) Catálogo Numista — importar tipos euro em falta (gasta quota)
+      - name: Numista — importar catálogo novo
+        run: node scripts/enrich-numista.mjs --importar-novos --apply --limit 150
+        continue-on-error: true
+
+      # 3) Ligar comemorativas ainda sem numista_id (gasta quota)
+      - name: Numista — ligar comemorativas
+        run: node scripts/enrich-numista.mjs --comemorativas --limit 100
+        continue-on-error: true
+
+      # 4) Valor de mercado + histórico de evolução (gasta o resto da quota; pára em 429)
+      - name: Numista — preços de mercado
+        run: node scripts/precos-numista.mjs --limit 800
+        continue-on-error: true
