@@ -41,6 +41,10 @@ const COMEMORATIVAS = args.includes('--comemorativas')
 const SYNC_ISSUES = args.includes('--sync-issues')
 const limitArg = args.indexOf('--limit')
 const LIMIT = limitArg >= 0 ? parseInt(args[limitArg + 1], 10) : Infinity
+const IMPORTAR_NOVOS = args.includes('--importar-novos')
+const APPLY = args.includes('--apply')
+const paisFilterIdx = args.indexOf('--pais')
+const PAIS_FILTER = paisFilterIdx >= 0 ? args[paisFilterIdx + 1] : null
 
 const supabase = createClient(SUPA_URL, SUPA_KEY, {
   db: { schema: 'numis' },
@@ -506,4 +510,96 @@ async function runSyncIssues() {
   console.log(`\n✅ ${feitos} coins re-sincronizados · ${reqCount} pedidos usados.`)
 }
 
-await (PROBE ? probe() : SYNC_ISSUES ? runSyncIssues() : COMEMORATIVAS ? runComemorativas() : run())
+// ─── Modo --importar-novos: traz tipos euro da Numista que NÃO temos ─────────
+// Ao contrário do enrich (que só LIGA coins existentes), este INSERE tipos euro
+// que faltam no catálogo. Conservador para não duplicar: um type conta como "já
+// temos" se (a) o numista_id já está ligado, ou (b) casa com a assinatura de um
+// coin nosso — circulação: pais+facial; comemorativa: pais+tema-normalizado.
+// Os restantes são candidatos NOVOS. Dry-run por defeito (grava JSON); --apply insere.
+// Coins de um país, paginado (PostgREST corta nos 1000).
+async function coinsDoPais(pc) {
+  const out = []
+  let from = 0
+  for (;;) {
+    const { data, error } = await supabase
+      .from('catalog_coins')
+      .select('numista_id, valor_facial, comemorativa, ano_inicio, pais_nome')
+      .eq('pais_codigo', pc)
+      .range(from, from + 999)
+    if (error) throw error
+    if (!data?.length) break
+    out.push(...data)
+    if (data.length < 1000) break
+    from += 1000
+  }
+  return out
+}
+
+async function runImportarNovos() {
+  const paises = PAIS_FILTER ? [PAIS_FILTER] : Object.keys(ISSUER_CODES)
+  const candidatos = []
+  let inseridos = 0
+  console.log(`${APPLY ? '📥 IMPORTAR (apply)' : '🔎 DRY-RUN (não escreve)'} · países: ${paises.join(', ')}\n`)
+  console.log(`  ${'País'.padEnd(14)} ${'temos'.padStart(6)} ${'Numista'.padStart(8)} ${'NOVOS'.padStart(6)}`)
+
+  for (const pc of paises) {
+    const issuerCode = ISSUER_CODES[pc]
+    if (!issuerCode) { console.warn(`⚠️  sem código de emissor para "${pc}"`); continue }
+    const types = await typesForIssuer(issuerCode)
+    const our = await coinsDoPais(pc)
+    const paisNome = our.find((c) => c.pais_nome)?.pais_nome || pc.toUpperCase()
+    const ligados = new Set(our.filter((c) => c.numista_id != null).map((c) => Number(c.numista_id)))
+    // Circulação: já temos esse facial. Comemorativa: já temos esse facial NESSE ano
+    // (ano_inicio) — chave fiável e cross-língua (não depende do tema PT vs EN).
+    const facialCirc = new Set(our.filter((c) => !c.comemorativa).map((c) => Number(c.valor_facial)))
+    const comemFacialAno = new Set(
+      our.filter((c) => c.comemorativa && c.ano_inicio).map((c) => `${Number(c.valor_facial)}|${c.ano_inicio}`),
+    )
+
+    const novosPais = []
+    for (const t of types) {
+      if (ligados.has(t.id)) continue
+      const facial = facialFromTitle(t.title)
+      const comem = ehComemType(t)
+      if (!comem && facialCirc.has(facial)) continue
+      if (comem && t.min_year && comemFacialAno.has(`${facial}|${t.min_year}`)) continue
+      novosPais.push({ pais: pc, paisNome, numista_id: t.id, titulo: t.title, facial, comemorativa: comem, tema: comem ? temaDoTitulo(t.title) : null, min_year: t.min_year, max_year: t.max_year })
+    }
+    candidatos.push(...novosPais)
+    console.log(`  ${paisNome.padEnd(14)} ${String(our.length).padStart(6)} ${String(types.length).padStart(8)} ${String(novosPais.length).padStart(6)}`)
+
+    if (APPLY) {
+      for (const n of novosPais) {
+        if (inseridos >= LIMIT) break
+        const detail = await api(`/types/${n.numista_id}?lang=en`, { cacheKey: `type-${n.numista_id}` })
+        const patch = mapCoinDetail(detail, { comemorativa: n.comemorativa })
+        const row = {
+          pais_codigo: pc,
+          pais_nome: n.paisNome,
+          titulo: detail.title || n.titulo,
+          denominacao: n.titulo,
+          valor_facial: n.facial,
+          comemorativa: n.comemorativa,
+          categoria: 'euro',
+          familia: n.comemorativa ? 'euro_comemorativa' : 'euro_circulacao',
+          ano_inicio: n.min_year || null,
+          ano_fim: n.max_year || null,
+          foto_fonte: 'Numista',
+          ...patch,
+        }
+        const { data: novo, error } = await supabase.from('catalog_coins').insert(row).select('id').single()
+        if (error) { if (!/duplicate|unique/.test(error.message)) console.error(`❌ ${n.titulo}: ${error.message}`); continue }
+        await syncIssuesForCoin(novo.id, n.numista_id)
+        inseridos++
+        if (inseridos % 10 === 0) console.log(`    …${inseridos} inseridos (${reqCount} pedidos)`)
+      }
+    }
+  }
+
+  writeFileSync(join(__dirname, 'numista-novos.json'), JSON.stringify(candidatos, null, 2))
+  console.log(`\n${APPLY ? '✅ Inseridos ' + inseridos : '🔎 DRY-RUN — 0 escritos'} · ${candidatos.length} candidatos novos no total · ${reqCount} pedidos.`)
+  console.log(`📝 Candidatos em scripts/numista-novos.json`)
+  if (!APPLY) console.log(`   Inserir: node scripts/enrich-numista.mjs --importar-novos --apply [--pais pt] [--limit 50]`)
+}
+
+await (PROBE ? probe() : IMPORTAR_NOVOS ? runImportarNovos() : SYNC_ISSUES ? runSyncIssues() : COMEMORATIVAS ? runComemorativas() : run())
