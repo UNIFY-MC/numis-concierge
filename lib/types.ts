@@ -41,6 +41,7 @@ export interface CatalogCoin {
   casa_moeda: string | null
   mintmark: string | null
   km_ref: string | null
+  gomes_ref: string | null                 // nº Gomes (catálogo Alberto Gomes), sem prefixo textual "Gomes "
   schon_ref: string | null
   numista_id: number | null
   anverso_img: string | null

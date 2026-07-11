@@ -81,3 +81,7 @@ scripts/.numista-portugal-todos.json
 scripts/.hist-ambiguos-pt.json
 scripts/.import-*.log
 scripts/.fotos-*.log
+# Harness Nirvana-OS — workspace e artefactos (regeneráveis)
+.nirvana/
+/outputs/
+scripts/_gomes_*.mjs
