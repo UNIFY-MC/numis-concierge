@@ -11,7 +11,7 @@ import Flag from './Flag'
 interface TagsInfo { tags: Tag[]; coinTags: Map<string, Set<string>> }
 
 type Col =
-  | 'pais' | 'tipo' | 'fotos' | 'moeda' | 'comemoracao' | 'denom' | 'serie' | 'metal' | 'composicao' | 'km' | 'schon'
+  | 'pais' | 'tipo' | 'fotos' | 'moeda' | 'comemoracao' | 'denom' | 'serie' | 'metal' | 'composicao' | 'variante' | 'km' | 'schon'
   | 'numista' | 'face' | 'ano' | 'casa' | 'mintmark' | 'peso' | 'diam' | 'espessura'
   | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'grau' | 'tiragem'
   | 'set' | 'caderneta' | 'bebe' | 'proof' | 'normal' | 'qtd' | 'facial' | 'mercado'
@@ -31,6 +31,7 @@ const COLUNAS: ColMeta[] = [
   { key: 'serie', label: 'Série / Reinado' },
   { key: 'metal', label: 'Metal' },
   { key: 'composicao', label: 'Composição' },
+  { key: 'variante', label: 'Variante' },
   { key: 'km', label: 'KM#' },
   { key: 'schon', label: 'Schön#' },
   { key: 'numista', label: 'Numista ID' },
@@ -57,7 +58,7 @@ const COLUNAS: ColMeta[] = [
   { key: 'mercado', label: 'Valor mercado', right: true },
 ]
 const LABEL = Object.fromEntries(COLUNAS.map((c) => [c.key, c.label])) as Record<Col, string>
-const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'grau', 'caderneta', 'bebe', 'set', 'proof', 'normal', 'qtd', 'facial', 'mercado']
+const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'variante', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'grau', 'caderneta', 'bebe', 'set', 'proof', 'normal', 'qtd', 'facial', 'mercado']
 // Chaves de coluna mantidas (preservam prefs); o rótulo/valor é o acabamento INCM.
 const FORMATO_DE_COL: Partial<Record<Col, FormatoColecao>> = { caderneta: 'carteira_fdc', bebe: 'carteira_bebe', set: 'bnc', proof: 'proof', normal: 'normal' }
 const qtdFormato = (r: DisplayRow, f: FormatoColecao) => r.itens.find((i) => i.formato_posse === f)?.quantidade ?? 0
@@ -73,10 +74,23 @@ const METAIS_PT: Record<string, string> = {
   platinum: 'Platina', palladium: 'Paládio', 'gold-plated': 'Dourado',
 }
 function metalPt(r: DisplayRow): string {
+  if (r.coin.metal) return METAIS_PT[r.coin.metal.toLowerCase()] ?? r.coin.metal
   const t = r.coin.composicao || r.coin.titulo || ''
   const m = t.match(/\b(Gold-plated|Copper-Nickel|Cupronickel|Gold|Silver|Copper|Bronze|Brass|Nickel|Bi-?Metallic|Billon|Steel|Tin|Zinc|Platinum|Palladium)\b/i)
   if (!m) return ''
   return METAIS_PT[m[1].toLowerCase().replace('bi-metallic', 'bimetallic')] ?? m[1]
+}
+// Variante/anomalia: parêntese de variante no título Numista (Pattern, Countermark,
+// "P aberto"…) + variante de mintmark + etiqueta da issue. Só marcadores de variante
+// (não o tema comemorativo, que vive na coluna Comemoração).
+const VARIANTE_RE = /pattern|countermark|contramarca|aberto|fechado|m[oó]dulo|mule|h[ií]brid|error|erro|restrike|essai|pi[eé]fort|variet|variante|overdate|sobredata|ensaio|prova/i
+function varianteDe(r: DisplayRow): string {
+  const parts: string[] = []
+  const m = (r.coin.titulo || '').match(/\(([^)]+)\)\s*$/)
+  if (m && VARIANTE_RE.test(m[1])) parts.push(m[1].trim())
+  if (r.issue.mintmark_variante) parts.push(String(r.issue.mintmark_variante))
+  if (r.issue.etiqueta) parts.push(String(r.issue.etiqueta))
+  return [...new Set(parts)].join(' · ')
 }
 function anoNum(r: DisplayRow): string {
   const n = r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10)
@@ -100,6 +114,7 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'serie':  return r.coin.serie ?? ''
     case 'metal':  return metalPt(r)
     case 'composicao': return r.coin.composicao ?? ''
+    case 'variante': return varianteDe(r)
     case 'km':     return r.coin.km_ref ?? ''
     case 'schon':  return r.coin.schon_ref ?? ''
     case 'numista': return r.coin.numista_id ?? 0
@@ -218,7 +233,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
   }, [colVis, sorts, larguras, prefsKey])
 
   // Colunas com filtro (todas excepto as contínuas de edição).
-  const SEM_FILTRO = new Set<Col>(['fotos', 'moeda', 'comemoracao', 'set', 'caderneta', 'bebe', 'proof', 'normal', 'qtd', 'facial', 'mercado'])
+  const SEM_FILTRO = new Set<Col>(['fotos', 'set', 'caderneta', 'bebe', 'proof', 'normal', 'qtd', 'facial', 'mercado'])
   // valores distintos por coluna (para as opções do dropdown de filtro)
   const valoresPorCol = useMemo(() => {
     const m = new Map<Col, string[]>()
@@ -329,6 +344,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
       case 'serie': return <span className="whitespace-nowrap text-[11px] text-mp-ink-soft">{r.coin.serie || '—'}</span>
       case 'metal': return <span className="whitespace-nowrap text-mp-ink-soft">{metalPt(r) || '—'}</span>
       case 'composicao': return <span className="text-[11px] text-mp-ink-soft">{r.coin.composicao || '—'}</span>
+      case 'variante': { const v = varianteDe(r); return <span className="text-[11px] text-mp-ink-soft">{v || '—'}</span> }
       case 'km': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.km_ref || '—'}</span>
       case 'schon': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.schon_ref || '—'}</span>
       case 'numista': return <span className="whitespace-nowrap text-[11px] text-mp-ink-faint">{r.coin.numista_id || '—'}</span>
