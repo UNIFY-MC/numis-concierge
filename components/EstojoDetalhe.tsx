@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Flag from '@/components/Flag'
-import AdicionarMoedaEstojo from '@/components/AdicionarMoedaEstojo'
+import EstojoQuickAdd from '@/components/EstojoQuickAdd'
 import { getConteudoEstojo, getEstojo, removerDoEstojo, type EstojoConteudoItem, type Estojo } from '@/lib/estojos'
 
 const FORMATO_CURTO: Record<string, string> = {
@@ -17,7 +17,6 @@ const FORMATO_CURTO: Record<string, string> = {
 export default function EstojoDetalhe({ id }: { id: string }) {
   const [estojo, setEstojo] = useState<Estojo | null>(null)
   const [itens, setItens] = useState<EstojoConteudoItem[] | null>(null)
-  const [adicionar, setAdicionar] = useState(false)
 
   async function carregar() {
     const [e, conteudo] = await Promise.all([getEstojo(id), getConteudoEstojo(id)])
@@ -36,6 +35,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   }
 
   const totalExemplares = (itens ?? []).reduce((s, i) => s + i.quantidade, 0)
+  const proximaOrdem = (itens ?? []).reduce((m, i) => Math.max(m, i.ordem), 0) + 1
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8">
@@ -43,33 +43,28 @@ export default function EstojoDetalhe({ id }: { id: string }) {
         ← Estojos
       </Link>
 
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-3xl font-semibold text-mp-gold-strong">{estojo?.nome ?? 'Estojo'}</h1>
-          <p className="mt-1 font-sans text-sm text-mp-ink-soft">
-            {estojo?.localizacao && <span className="text-mp-ink">📍 {estojo.localizacao} · </span>}
-            {itens && `${itens.length} moedas · ${totalExemplares} exemplares`}
-          </p>
-        </div>
-        <button
-          onClick={() => setAdicionar(true)}
-          className="shrink-0 rounded-xl bg-mp-gold px-4 py-2.5 font-sans text-sm font-semibold text-white hover:bg-mp-gold-strong"
-        >
-          + Adicionar moeda
-        </button>
+      <header className="mb-5">
+        <h1 className="font-serif text-3xl font-semibold text-mp-gold-strong">{estojo?.nome ?? 'Estojo'}</h1>
+        <p className="mt-1 font-sans text-sm text-mp-ink-soft">
+          {estojo?.localizacao && <span className="text-mp-ink">📍 {estojo.localizacao} · </span>}
+          {itens && `${itens.length} moedas · ${totalExemplares} exemplares`}
+        </p>
       </header>
+
+      <EstojoQuickAdd estojoId={id} proximaOrdem={proximaOrdem} onAdded={carregar} />
 
       {itens === null ? (
         <p className="font-sans text-sm text-mp-ink-soft">A carregar…</p>
       ) : itens.length === 0 ? (
         <p className="rounded-2xl border border-mp-border bg-mp-surface p-6 font-sans text-sm text-mp-ink-soft">
-          Este estojo ainda não tem moedas. Usa “Adicionar moeda” para pesquisar e registar o que aqui guardas.
+          Este estojo ainda não tem moedas. Usa a barra acima para pesquisar e adicionar.
         </p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-mp-border bg-mp-surface">
           <table className="w-full text-left font-sans text-sm">
             <thead>
               <tr className="border-b border-mp-border text-xs uppercase tracking-wide text-mp-ink-faint">
+                <th className="px-4 py-3 font-semibold">#</th>
                 <th className="px-4 py-3 font-semibold">Moeda</th>
                 <th className="px-4 py-3 font-semibold">Ano</th>
                 <th className="px-4 py-3 font-semibold">Formato</th>
@@ -78,8 +73,9 @@ export default function EstojoDetalhe({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody>
-              {itens.map((i) => (
-                <tr key={i.collectionId} className="border-b border-mp-border last:border-0 hover:bg-mp-surface-muted">
+              {itens.map((i, idx) => (
+                <tr key={i.alocacaoId} className="border-b border-mp-border last:border-0 hover:bg-mp-surface-muted">
+                  <td className="px-4 py-3 font-serif font-semibold text-mp-gold">{i.ordem || idx + 1}</td>
                   <td className="px-4 py-3">
                     <span className="flex items-center gap-2.5 text-mp-ink">
                       <Flag code={i.paisCodigo} size={18} />
@@ -106,16 +102,6 @@ export default function EstojoDetalhe({ id }: { id: string }) {
             </tbody>
           </table>
         </div>
-      )}
-
-      {adicionar && (
-        <AdicionarMoedaEstojo
-          estojoId={id}
-          onClose={() => setAdicionar(false)}
-          onAdded={async () => {
-            await carregar()
-          }}
-        />
       )}
     </div>
   )

@@ -31,7 +31,9 @@ export interface EstojoResumo extends Estojo {
 }
 
 export interface EstojoConteudoItem {
+  alocacaoId: string
   collectionId: string
+  ordem: number
   quantidade: number
   titulo: string
   denominacao: string | null
@@ -40,6 +42,22 @@ export interface EstojoConteudoItem {
   ano: string | null
   formato: string | null
   grau: string | null
+}
+
+// Próximo número de ordem livre num estojo (max+1), para entrada em linha.
+async function proximaOrdem(estojoId: string): Promise<number> {
+  const { data } = await supabase
+    .from('colecao_estojo')
+    .select('ordem')
+    .eq('estojo_id', estojoId)
+    .order('ordem', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle()
+  return (data?.ordem ?? 0) + 1
+}
+
+export async function getProximaOrdem(estojoId: string): Promise<number> {
+  return proximaOrdem(estojoId)
 }
 
 async function uid(): Promise<string> {
@@ -224,6 +242,7 @@ export async function adicionarMoedaAoEstojo(input: {
       collection_id: collectionId,
       estojo_id: input.estojoId,
       quantidade: qtd,
+      ordem: await proximaOrdem(input.estojoId),
     })
     if (error) throw error
   }
@@ -303,6 +322,7 @@ export async function setAlocacoes(collectionId: string, alocs: AlocacaoEdit[]):
         collection_id: collectionId,
         estojo_id: a.estojoId,
         quantidade: a.quantidade,
+        ordem: await proximaOrdem(a.estojoId),
       })
       if (error) throw error
     }
@@ -431,7 +451,7 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
   const { data, error } = await supabase
     .from('colecao_estojo')
     .select(
-      'quantidade, collection:collection_id ( id, formato_posse, grau, ' +
+      'id, quantidade, ordem, collection:collection_id ( id, formato_posse, grau, ' +
         'catalog_coins:catalog_coin_id ( titulo, denominacao, pais_codigo, pais_nome ), ' +
         'catalog_issues:catalog_issue_id ( ano ) )',
     )
@@ -439,7 +459,9 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
   if (error) throw error
 
   type Row = {
+    id: string
     quantidade: number
+    ordem: number | null
     collection: {
       id: string
       formato_posse: string | null
@@ -452,7 +474,9 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
   return ((data ?? []) as unknown as Row[])
     .filter((r) => r.collection)
     .map((r) => ({
+      alocacaoId: r.id,
       collectionId: r.collection!.id,
+      ordem: r.ordem ?? 0,
       quantidade: r.quantidade,
       titulo: r.collection!.catalog_coins?.titulo ?? '—',
       denominacao: r.collection!.catalog_coins?.denominacao ?? null,
@@ -462,5 +486,5 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
       formato: r.collection!.formato_posse,
       grau: r.collection!.grau,
     }))
-    .sort((a, b) => (a.paisNome ?? '').localeCompare(b.paisNome ?? '') || (a.ano ?? '').localeCompare(b.ano ?? ''))
+    .sort((a, b) => a.ordem - b.ordem)
 }
