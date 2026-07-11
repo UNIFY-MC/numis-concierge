@@ -5,11 +5,11 @@ import {
   getCatalogCoinsByFamilias, getIssuesByFamilias, getCollection, countIssuesByFamilias,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
-import { setAlocacaoUnica } from '@/lib/estojos'
+import { setAlocacaoUnica, getTodasAlocacoes } from '@/lib/estojos'
 import { estadoDe, itemPrincipal } from '@/lib/types'
 import { valorReal, valorColecao } from '@/lib/valor'
 import { casaEmissor } from '@/lib/emissores'
-import type { DisplayRow, CatalogCoin, CatalogIssue, CollectionItem, PaisAgregado, FormatoColecao } from '@/lib/types'
+import type { DisplayRow, CatalogCoin, CatalogIssue, CollectionItem, PaisAgregado, FormatoColecao, EstojoTag } from '@/lib/types'
 import StatsBar from './StatsBar'
 import FilterBar, { type EstadoFiltro } from './FilterBar'
 import ViewTabs, { type Vista } from './ViewTabs'
@@ -35,7 +35,12 @@ function virtualCodigo(r: DisplayRow): string {
 }
 
 // Constrói as linhas de exibição (issue × coin × exemplares) de um grupo.
-function buildRows(coins: CatalogCoin[], issues: CatalogIssue[], collection: CollectionItem[]): DisplayRow[] {
+function buildRows(
+  coins: CatalogCoin[],
+  issues: CatalogIssue[],
+  collection: CollectionItem[],
+  aloc: Record<string, EstojoTag[]>,
+): DisplayRow[] {
   const coinById = new Map<string, CatalogCoin>(coins.map((c) => [c.id, c]))
   const itensByIssue = new Map<string, CollectionItem[]>()
   for (const it of collection) if (it.catalog_issue_id) {
@@ -44,11 +49,17 @@ function buildRows(coins: CatalogCoin[], issues: CatalogIssue[], collection: Col
     itensByIssue.set(it.catalog_issue_id, arr)
   }
   return issues
-    .map((issue) => {
+    .map((issue): DisplayRow | null => {
       const coin = coinById.get(issue.catalog_coin_id)
       if (!coin) return null
       const itens = itensByIssue.get(issue.id) ?? []
-      return { issue, coin, itens, item: itemPrincipal(itens) }
+      // Estojos onde esta moeda está: união das alocações dos seus exemplares.
+      const vistos = new Set<string>()
+      const estojos: EstojoTag[] = []
+      for (const it of itens) for (const e of aloc[it.id] ?? []) {
+        if (!vistos.has(e.nome)) { vistos.add(e.nome); estojos.push(e) }
+      }
+      return { issue, coin, itens, item: itemPrincipal(itens), estojos: estojos.length ? estojos : undefined }
     })
     .filter((r): r is DisplayRow => r !== null)
 }
@@ -95,9 +106,9 @@ export default function MoedasCollection() {
     if (rowsByGroup[grupo]) return
     let alive = true
     const fams = FAMILIAS_DO_GRUPO[grupo]
-    Promise.all([getCatalogCoinsByFamilias(fams), getIssuesByFamilias(fams), getCollection()])
-      .then(([coins, issues, collection]) => {
-        if (alive) setRowsByGroup((prev) => ({ ...prev, [grupo]: buildRows(coins, issues, collection) }))
+    Promise.all([getCatalogCoinsByFamilias(fams), getIssuesByFamilias(fams), getCollection(), getTodasAlocacoes()])
+      .then(([coins, issues, collection, aloc]) => {
+        if (alive) setRowsByGroup((prev) => ({ ...prev, [grupo]: buildRows(coins, issues, collection, aloc) }))
       })
       .catch((e) => {
         if (!alive) return

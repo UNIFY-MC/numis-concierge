@@ -13,7 +13,7 @@ interface TagsInfo { tags: Tag[]; coinTags: Map<string, Set<string>> }
 type Col =
   | 'pais' | 'tipo' | 'fotos' | 'moeda' | 'comemoracao' | 'denom' | 'serie' | 'metal' | 'composicao' | 'variante' | 'km' | 'schon'
   | 'numista' | 'face' | 'ano' | 'casa' | 'mintmark' | 'peso' | 'diam' | 'espessura'
-  | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'grau' | 'tiragem'
+  | 'anversodesc' | 'reversodesc' | 'orla' | 'tags' | 'estojo' | 'grau' | 'tiragem'
   | 'set' | 'caderneta' | 'bebe' | 'proof' | 'normal' | 'qtd' | 'facial' | 'mercado'
 type Dir = 1 | -1
 interface SortRule { col: Col; dir: Dir }
@@ -46,6 +46,7 @@ const COLUNAS: ColMeta[] = [
   { key: 'reversodesc', label: 'Desc. reverso' },
   { key: 'orla', label: 'Orla' },
   { key: 'tags', label: 'Coleções' },
+  { key: 'estojo', label: 'Estojo' },
   { key: 'grau', label: 'Grau' },
   { key: 'tiragem', label: 'Tiragem', right: true },
   { key: 'caderneta', label: 'Carteira FDC', right: true },
@@ -63,7 +64,7 @@ const FILTROS_BARRA: [Col, string][] = [
   ['moeda', 'Moeda'], ['metal', 'Material'], ['composicao', 'Composição'],
   ['ano', 'Ano'], ['variante', 'Variante'], ['serie', 'Reinado/Série'],
 ]
-const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'variante', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'grau', 'caderneta', 'bebe', 'set', 'proof', 'normal', 'qtd', 'facial', 'mercado']
+const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'variante', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'estojo', 'grau', 'caderneta', 'bebe', 'set', 'proof', 'normal', 'qtd', 'facial', 'mercado']
 // Chaves de coluna mantidas (preservam prefs); o rótulo/valor é o acabamento INCM.
 const FORMATO_DE_COL: Partial<Record<Col, FormatoColecao>> = { caderneta: 'carteira_fdc', bebe: 'carteira_bebe', set: 'bnc', proof: 'proof', normal: 'normal' }
 const qtdFormato = (r: DisplayRow, f: FormatoColecao) => r.itens.find((i) => i.formato_posse === f)?.quantidade ?? 0
@@ -134,6 +135,7 @@ function valOf(r: DisplayRow, col: Col): string | number {
     case 'reversodesc': return r.coin.reverso_desc ?? ''
     case 'orla':   return r.coin.orla_desc ?? r.coin.orla_tipo ?? ''
     case 'tags':   return ''  // ordenação por tags não se aplica (chips)
+    case 'estojo': return (r.estojos ?? []).map((e) => e.nome).join(' · ')
     case 'grau':   return r.item?.grau ?? ''
     case 'tiragem': return r.issue.tiragem ?? 0
     case 'set':    return qtdFormato(r, 'bnc')
@@ -383,6 +385,22 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
           <span className="flex flex-wrap gap-1">
             {nomes.map((t) => (
               <span key={t.id} className="whitespace-nowrap rounded-full bg-mp-primary-soft px-1.5 py-0.5 text-[10px] font-semibold text-mp-primary-strong">{t.nome}</span>
+            ))}
+          </span>
+        )
+      }
+      case 'estojo': {
+        if (!r.estojos || r.estojos.length === 0) return <span className="text-mp-ink-faint">—</span>
+        return (
+          <span className="flex flex-wrap gap-1">
+            {r.estojos.map((e) => (
+              <span
+                key={e.nome}
+                title={e.localizacao ? `${e.nome} · ${e.localizacao}` : e.nome}
+                className="whitespace-nowrap rounded-full bg-mp-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-mp-primary-strong"
+              >
+                📦 {e.nome}
+              </span>
             ))}
           </span>
         )

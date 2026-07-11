@@ -88,11 +88,17 @@ export interface CatalogIssue {
 // Linha de apresentação: junta issue + o seu coin + os exemplares na colecção.
 // `itens` = todos os exemplares (um por formato: set/caderneta/caderneta_bebe).
 // `item` = exemplar principal (resumo para a matriz/cartões); ver itemPrincipal().
+export interface EstojoTag {
+  nome: string
+  localizacao: string | null
+}
+
 export interface DisplayRow {
   issue: CatalogIssue
   coin: CatalogCoin
   item: CollectionItem | null
   itens: CollectionItem[]
+  estojos?: EstojoTag[] // onde os exemplares desta moeda estão guardados
 }
 
 // Acabamentos/formatos com que uma moeda pode existir em simultâneo. Dois contextos:

@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { invalidateCollection } from './catalog'
+import type { EstojoTag } from './types'
 
 export interface Estojo {
   id: string
@@ -266,6 +267,32 @@ export async function getEstojoPorColecao(collectionIds: string[]): Promise<Reco
   const map: Record<string, string> = {}
   for (const r of (data ?? []) as unknown as { collection_id: string; estojos: { nome: string } | null }[]) {
     if (r.estojos?.nome) map[r.collection_id] = r.estojos.nome
+  }
+  return map
+}
+
+// Todas as alocações do utilizador, por linha de colecção → estojos (com localização).
+// Para a vista Moedas mostrar onde cada moeda está sem abrir a ficha.
+export async function getTodasAlocacoes(): Promise<Record<string, EstojoTag[]>> {
+  const PAGE = 1000
+  let from = 0
+  const map: Record<string, EstojoTag[]> = {}
+  for (;;) {
+    const { data, error } = await supabase
+      .from('colecao_estojo')
+      .select('collection_id, estojos:estojo_id ( nome, localizacao )')
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    const rows = (data ?? []) as unknown as {
+      collection_id: string
+      estojos: { nome: string; localizacao: string | null } | null
+    }[]
+    for (const r of rows) {
+      if (!r.estojos) continue
+      ;(map[r.collection_id] ??= []).push({ nome: r.estojos.nome, localizacao: r.estojos.localizacao })
+    }
+    if (rows.length < PAGE) break
+    from += PAGE
   }
   return map
 }

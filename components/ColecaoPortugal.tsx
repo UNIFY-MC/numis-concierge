@@ -5,14 +5,24 @@ import {
   getCatalogPais, getCollection, getIssuesPais,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
-import { setAlocacaoUnica } from '@/lib/estojos'
+import { setAlocacaoUnica, getTodasAlocacoes } from '@/lib/estojos'
 import { ERAS, eraDe } from '@/lib/series'
 import { getTags, getCoinTags, type Tag } from '@/lib/tags'
 import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
 import { CONTEXTO } from '@/lib/data/contexto-pt'
 import { itemPrincipal } from '@/lib/types'
 import { valorMercadoGrau, eur } from '@/lib/valor'
-import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao } from '@/lib/types'
+import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao, EstojoTag } from '@/lib/types'
+
+// Estojos onde os exemplares de uma moeda estão (união, sem repetir nome).
+function estojosDe(itens: CollectionItem[], aloc: Record<string, EstojoTag[]>): EstojoTag[] | undefined {
+  const vistos = new Set<string>()
+  const out: EstojoTag[] = []
+  for (const it of itens) for (const e of aloc[it.id] ?? []) {
+    if (!vistos.has(e.nome)) { vistos.add(e.nome); out.push(e) }
+  }
+  return out.length ? out : undefined
+}
 import CoinSheet, { type CoinSheetSave } from './CoinSheet'
 import TabelaView from './TabelaView'
 import retratos from '@/lib/data/reis-retratos.json'
@@ -34,6 +44,7 @@ export default function ColecaoPortugal() {
   const [verTodos, setVerTodos] = useState<'era' | 'tudo' | null>(null)
   const [vista, setVista] = useState<Vista>('lista')
   const [ficha, setFicha] = useState<DisplayRow | null>(null)
+  const [aloc, setAloc] = useState<Record<string, EstojoTag[]>>({})
 
   const tenho = useMemo(() => {
     const t = new Set<string>()
@@ -42,8 +53,8 @@ export default function ColecaoPortugal() {
   }, [col])
 
   useEffect(() => {
-    Promise.all([getCatalogPais('pt'), getIssuesPais('pt'), getCollection(), getTags(), getCoinTags()])
-      .then(([cs, is, c, tg, ctg]) => { setCoins(cs); setIssues(is); setCol(c); setTags(tg); setCoinTags(ctg) })
+    Promise.all([getCatalogPais('pt'), getIssuesPais('pt'), getCollection(), getTags(), getCoinTags(), getTodasAlocacoes()])
+      .then(([cs, is, c, tg, ctg, al]) => { setCoins(cs); setIssues(is); setCol(c); setTags(tg); setCoinTags(ctg); setAloc(al) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -91,7 +102,7 @@ export default function ColecaoPortugal() {
     const issue = issueDeCoin.get(coin.id)
     if (!issue) return null
     const itens = itensDeIssue.get(issue.id) ?? []
-    return { coin, issue, itens, item: itemPrincipal(itens) }
+    return { coin, issue, itens, item: itemPrincipal(itens), estojos: estojosDe(itens, aloc) }
   }
 
   function abrirFicha(coin: CatalogCoin) {
@@ -262,9 +273,9 @@ export default function ColecaoPortugal() {
       .map((i) => {
         const coin = coinById.get(i.catalog_coin_id)!
         const itens = itensDeIssue.get(i.id) ?? []
-        return { coin, issue: i, itens, item: itemPrincipal(itens) } as DisplayRow
+        return { coin, issue: i, itens, item: itemPrincipal(itens), estojos: estojosDe(itens, aloc) } as DisplayRow
       })
-  }, [coinsDaSerie, issues, itensDeIssue])
+  }, [coinsDaSerie, issues, itensDeIssue, aloc])
 
   if (loading) return <div className="p-8 text-mp-ink-faint">A carregar a coleção…</div>
 

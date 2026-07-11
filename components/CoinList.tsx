@@ -47,6 +47,19 @@ export default function CoinList({ rows, onSelect, destaque }: CoinListProps) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-mp-ink truncate">{nome}</p>
               <p className="text-xs text-mp-ink-faint">{r.issue.ano}{r.issue.casa_moeda ? ` · Casa ${r.issue.casa_moeda}` : ''}</p>
+              {r.estojos && r.estojos.length > 0 && (
+                <p className="mt-0.5 flex flex-wrap gap-1">
+                  {r.estojos.map((e) => (
+                    <span
+                      key={e.nome}
+                      title={e.localizacao ? `${e.nome} · ${e.localizacao}` : e.nome}
+                      className="inline-flex items-center gap-1 rounded-full bg-mp-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-mp-primary-strong"
+                    >
+                      📦 {e.nome}{e.localizacao ? <span className="text-mp-primary-strong/70"> · {e.localizacao}</span> : null}
+                    </span>
+                  ))}
+                </p>
+              )}
             </div>
             <span className={'text-[11px] font-medium rounded-full px-2 py-0.5 flex-none ' + badge.cls}>{badge.label}</span>
             <span className="text-sm text-mp-gold-strong font-serif w-16 text-right flex-none">
