@@ -16,6 +16,7 @@ const PRINCIPAL: NavItem[] = [
   { label: 'Dashboard', href: '/inicio', icon: <IconGrid /> },
   { label: 'Coleções', href: '/colecoes', icon: <IconLayers /> },
   { label: 'Moedas', href: '/moedas', icon: <IconCoin /> },
+  { label: 'Estojos', href: '/estojos', icon: <IconBox /> },
   { label: 'Catálogos', icon: <IconBook /> },
   { label: 'Cadernetas', icon: <IconNote /> },
   { label: 'Trocas', icon: <IconSwap /> },
@@ -24,7 +25,7 @@ const PRINCIPAL: NavItem[] = [
   { label: 'Mercado', icon: <IconBag /> },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -92,6 +93,31 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Administração — só para o dono/admin (is_admin no profile) */}
+      {isAdmin && (
+        <div className="flex flex-col gap-1">
+          {!collapsed && (
+            <p className="px-3 pb-1 font-sans text-[10px] font-semibold uppercase tracking-wide text-mp-ink-faint">
+              Administração
+            </p>
+          )}
+          <Link
+            href="/admin"
+            title={collapsed ? 'Administração' : undefined}
+            className={`flex items-center rounded-xl py-2.5 font-sans text-sm transition-colors ${collapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${
+              pathname.startsWith('/admin')
+                ? 'bg-mp-primary-soft font-semibold text-mp-primary-strong'
+                : 'text-mp-ink-soft hover:bg-mp-surface-muted'
+            }`}
+          >
+            <span className={`shrink-0 ${pathname.startsWith('/admin') ? 'text-mp-primary-strong' : 'text-mp-ink-faint'}`}>
+              <IconShield />
+            </span>
+            {!collapsed && <span className="flex-1">Administração</span>}
+          </Link>
+        </div>
+      )}
+
       {/* Ajuda */}
       <div className={`flex items-center rounded-2xl bg-mp-falta-bg ${collapsed ? 'justify-center px-0 py-3' : 'gap-2.5 px-3 py-3'}`}>
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-mp-primary text-white"><IconChatSm /></span>
@@ -125,4 +151,6 @@ function IconChart() { return svg(<><path d="M4 20V4" /><path d="M4 20h16" /><pa
 function IconBag() { return svg(<><path d="M6 7h12l-1 13H7L6 7z" /><path d="M9 7a3 3 0 0 1 6 0" /></>) }
 function IconCollapse() { return svg(<><path d="M15 6l-6 6 6 6" /><path d="M20 4v16" /></>) }
 function IconExpand() { return svg(<><path d="M9 6l6 6-6 6" /><path d="M4 4v16" /></>) }
+function IconBox() { return svg(<><path d="M3 8l9-5 9 5v8l-9 5-9-5z" /><path d="M3 8l9 5 9-5" /><path d="M12 13v8" /></>) }
+function IconShield() { return svg(<><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" /><path d="M9.5 12l1.8 1.8 3.2-3.4" /></>) }
 function IconChatSm() { return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.5 9 9 0 0 1-4-1l-5 1 1.5-4.5A8.38 8.38 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z" /></svg> }

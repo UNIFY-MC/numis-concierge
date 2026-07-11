@@ -5,6 +5,7 @@ import {
   getCatalogPais, getCollection, getIssuesPais,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
+import { setAlocacaoUnica } from '@/lib/estojos'
 import { ERAS, eraDe } from '@/lib/series'
 import { getTags, getCoinTags, type Tag } from '@/lib/tags'
 import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
@@ -157,17 +158,19 @@ export default function ColecaoPortugal() {
     const { coin, issue } = ficha
     const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota, defeito: input.defeito }
     for (const f of input.formatos) {
-      await upsertCollectionItem({
+      const saved = await upsertCollectionItem({
         catalogCoinId: coin.id, catalogIssueId: issue.id,
         quantidade: Math.max(1, f.quantidade), formatoPosse: f.formato,
         grau: f.grau, valorBase: f.valorBase, ...comuns,
       })
+      await setAlocacaoUnica(saved.id, f.estojo, Math.max(1, f.quantidade))
     }
     for (const fr of input.removidos) {
-      await upsertCollectionItem({
+      const saved = await upsertCollectionItem({
         catalogCoinId: coin.id, catalogIssueId: issue.id,
         quantidade: 0, formatoPosse: fr, grau: null, valorBase: null, ...comuns,
       })
+      await setAlocacaoUnica(saved.id, null, 1)
     }
     if (input.aplicarTodos) await applyToAllYears(coin.id, input.formatos[0]?.valorBase ?? null, input.foto)
     const atual = await getCollection()

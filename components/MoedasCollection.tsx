@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  getCatalogCoins, getCatalogIssues, getCollection,
+  getCatalogCoinsByFamilias, getIssuesByFamilias, getCollection, countIssuesByFamilias,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
+import { setAlocacaoUnica } from '@/lib/estojos'
 import { estadoDe, itemPrincipal } from '@/lib/types'
 import { valorReal, valorColecao } from '@/lib/valor'
 import { casaEmissor } from '@/lib/emissores'
-import type { DisplayRow, CatalogCoin, CollectionItem, PaisAgregado, FormatoColecao } from '@/lib/types'
+import type { DisplayRow, CatalogCoin, CatalogIssue, CollectionItem, PaisAgregado, FormatoColecao } from '@/lib/types'
 import StatsBar from './StatsBar'
 import FilterBar, { type EstadoFiltro } from './FilterBar'
 import ViewTabs, { type Vista } from './ViewTabs'
@@ -33,9 +34,30 @@ function virtualCodigo(r: DisplayRow): string {
   return r.coin.pais_codigo
 }
 
+// Constrói as linhas de exibição (issue × coin × exemplares) de um grupo.
+function buildRows(coins: CatalogCoin[], issues: CatalogIssue[], collection: CollectionItem[]): DisplayRow[] {
+  const coinById = new Map<string, CatalogCoin>(coins.map((c) => [c.id, c]))
+  const itensByIssue = new Map<string, CollectionItem[]>()
+  for (const it of collection) if (it.catalog_issue_id) {
+    const arr = itensByIssue.get(it.catalog_issue_id) ?? []
+    arr.push(it)
+    itensByIssue.set(it.catalog_issue_id, arr)
+  }
+  return issues
+    .map((issue) => {
+      const coin = coinById.get(issue.catalog_coin_id)
+      if (!coin) return null
+      const itens = itensByIssue.get(issue.id) ?? []
+      return { issue, coin, itens, item: itemPrincipal(itens) }
+    })
+    .filter((r): r is DisplayRow => r !== null)
+}
+
 export default function MoedasCollection() {
-  const [rows, setRows] = useState<DisplayRow[]>([])
-  const [loading, setLoading] = useState(true)
+  // Carregamento lazy por grupo de família: só se descarrega o grupo activo
+  // (ex. euro ~800 tipos) e fica em cache; os outros carregam ao serem abertos.
+  const [rowsByGroup, setRowsByGroup] = useState<Partial<Record<GrupoFamilia, DisplayRow[]>>>({})
+  const [counts, setCounts] = useState<Record<GrupoFamilia, number>>({ euro: 0, colecao: 0, historico: 0 })
   const [erro, setErro] = useState<string | null>(null)
 
   const [grupo, setGrupo] = useState<GrupoFamilia>('euro')
@@ -48,46 +70,45 @@ export default function MoedasCollection() {
   const [imprimir, setImprimir] = useState<{ tipo: 'geral' } | { tipo: 'pais'; codigo: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const rows = rowsByGroup[grupo] ?? []
+  const loading = rowsByGroup[grupo] === undefined
+  const setRows = (updater: DisplayRow[] | ((prev: DisplayRow[]) => DisplayRow[])) =>
+    setRowsByGroup((prev) => ({
+      ...prev,
+      [grupo]: typeof updater === 'function'
+        ? (updater as (p: DisplayRow[]) => DisplayRow[])(prev[grupo] ?? [])
+        : updater,
+    }))
+
+  // Contagens por grupo (uma vez) — alimenta os separadores sem trazer linhas.
   useEffect(() => {
-    Promise.all([getCatalogCoins(), getCatalogIssues(), getCollection()])
-      .then(([coins, issues, collection]) => {
-        const coinById = new Map<string, CatalogCoin>(coins.map((c) => [c.id, c]))
-        // Vários exemplares por issue (um por formato): agrupar numa lista.
-        const itensByIssue = new Map<string, CollectionItem[]>()
-        for (const it of collection) if (it.catalog_issue_id) {
-          const arr = itensByIssue.get(it.catalog_issue_id) ?? []
-          arr.push(it)
-          itensByIssue.set(it.catalog_issue_id, arr)
-        }
-        const built = issues
-          .map((issue) => {
-            const coin = coinById.get(issue.catalog_coin_id)
-            if (!coin) return null
-            const itens = itensByIssue.get(issue.id) ?? []
-            return { issue, coin, itens, item: itemPrincipal(itens) }
-          })
-          .filter((r): r is DisplayRow => r !== null)
-        setRows(built)
-      })
-      .catch((e) => setErro(e.message ?? String(e)))
-      .finally(() => setLoading(false))
+    let alive = true
+    const gs: GrupoFamilia[] = ['euro', 'colecao', 'historico']
+    Promise.all(gs.map((g) => countIssuesByFamilias(FAMILIAS_DO_GRUPO[g])))
+      .then((v) => { if (alive) setCounts({ euro: v[0], colecao: v[1], historico: v[2] }) })
+      .catch(() => {})
+    return () => { alive = false }
   }, [])
 
-  // Contagem por grupo de família (para os separadores) e subconjunto activo.
-  const contagens = useMemo(() => {
-    const c: Record<GrupoFamilia, number> = { euro: 0, colecao: 0, historico: 0 }
-    for (const r of rows) {
-      for (const [g, fams] of Object.entries(FAMILIAS_DO_GRUPO)) {
-        if (r.coin.familia && fams.includes(r.coin.familia)) { c[g as GrupoFamilia]++; break }
-      }
-    }
-    return c
-  }, [rows])
-
-  const rowsFam = useMemo(() => {
+  // Carrega o grupo activo só na primeira vez que é aberto (lazy + cache).
+  useEffect(() => {
+    if (rowsByGroup[grupo]) return
+    let alive = true
     const fams = FAMILIAS_DO_GRUPO[grupo]
-    return rows.filter((r) => r.coin.familia && fams.includes(r.coin.familia))
-  }, [rows, grupo])
+    Promise.all([getCatalogCoinsByFamilias(fams), getIssuesByFamilias(fams), getCollection()])
+      .then(([coins, issues, collection]) => {
+        if (alive) setRowsByGroup((prev) => ({ ...prev, [grupo]: buildRows(coins, issues, collection) }))
+      })
+      .catch((e) => {
+        if (!alive) return
+        setErro(e?.message ?? String(e))
+        setRowsByGroup((prev) => ({ ...prev, [grupo]: [] }))
+      })
+    return () => { alive = false }
+  }, [grupo, rowsByGroup])
+
+  const contagens = counts
+  const rowsFam = rows
 
   // Stats do grupo de família activo
   const stats = useMemo(() => {
@@ -210,20 +231,24 @@ export default function MoedasCollection() {
     const { coin, issue } = selecionada
     const comuns = { casaMoeda: input.casaMoeda, foto: input.foto, notaPrivada: input.nota, defeito: input.defeito }
     const saves: CollectionItem[] = []
-    // Formatos marcados: gravar exemplar (qty ≥ 1, grau/valor próprios).
+    // Formatos marcados: gravar exemplar (qty ≥ 1, grau/valor próprios) + estojo.
     for (const f of input.formatos) {
-      saves.push(await upsertCollectionItem({
+      const saved = await upsertCollectionItem({
         catalogCoinId: coin.id, catalogIssueId: issue.id,
         quantidade: Math.max(1, f.quantidade), formatoPosse: f.formato,
         grau: f.grau, valorBase: f.valorBase, ...comuns,
-      }))
+      })
+      await setAlocacaoUnica(saved.id, f.estojo, Math.max(1, f.quantidade))
+      saves.push(saved)
     }
-    // Formatos desmarcados que existiam: pôr quantidade 0 (RLS não permite apagar).
+    // Formatos desmarcados que existiam: pôr quantidade 0 (RLS não permite apagar) e limpar estojo.
     for (const fr of input.removidos) {
-      saves.push(await upsertCollectionItem({
+      const saved = await upsertCollectionItem({
         catalogCoinId: coin.id, catalogIssueId: issue.id,
         quantidade: 0, formatoPosse: fr, grau: null, valorBase: null, ...comuns,
-      }))
+      })
+      await setAlocacaoUnica(saved.id, null, 1)
+      saves.push(saved)
     }
     if (input.aplicarTodos) await applyToAllYears(coin.id, input.formatos[0]?.valorBase ?? null, input.foto)
     setRows((prev) => {
@@ -402,7 +427,6 @@ export default function MoedasCollection() {
     }
   }
 
-  if (loading) return <div className="p-8 text-mp-ink-faint">A carregar…</div>
   if (erro) return <div className="p-8 text-mp-falta">Erro: {erro}</div>
 
   return (
@@ -420,15 +444,19 @@ export default function MoedasCollection() {
         </div>
       </header>
 
-      <StatsBar
-        total={stats.total}
-        emissores={stats.emissores}
-        set={stats.set}
-        caderneta={stats.cad}
-        naotem={stats.naotem}
-        valorSet={stats.vSet}
-        valorCad={stats.vCad}
-      />
+      {loading ? (
+        <div className="mb-4 h-16 rounded-2xl bg-mp-surface-muted animate-pulse" />
+      ) : (
+        <StatsBar
+          total={stats.total}
+          emissores={stats.emissores}
+          set={stats.set}
+          caderneta={stats.cad}
+          naotem={stats.naotem}
+          valorSet={stats.vSet}
+          valorCad={stats.vCad}
+        />
+      )}
 
       <FilterBar
         estado={estado}
@@ -445,7 +473,13 @@ export default function MoedasCollection() {
 
       <ViewTabs vista={vista} onChange={(v) => { setVista(v); setPaisAberto(null) }} />
 
-      {vista === 'valor' ? (
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-28 rounded-2xl bg-mp-surface-muted animate-pulse" />
+          ))}
+        </div>
+      ) : vista === 'valor' ? (
         <ValorPorPais paises={[...agregados.values()]} totalGeral={stats.vSet + stats.vCad} />
       ) : vista === 'tabela' ? (
         <TabelaView

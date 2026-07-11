@@ -126,22 +126,106 @@ export async function setUiPrefs(chave: string, prefs: unknown): Promise<void> {
   else await supabase.from('ui_prefs').insert({ chave, prefs })
 }
 
-export async function getCollection(): Promise<CollectionItem[]> {
-  const PAGE = 1000
-  let from = 0
-  const all: CollectionItem[] = []
-  for (;;) {
-    const { data, error } = await supabase
-      .from('collection')
-      .select('*')
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    all.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
+// ─── Cache em memória ────────────────────────────────────────────────────────
+// O catálogo é efetivamente imutável durante a sessão (só muda por import offline),
+// por isso carrega-se uma vez por grupo de família e reutiliza-se entre navegações.
+// A coleção muda com as edições → invalida-se explicitamente após cada escrita.
+const coinsFamCache = new Map<string, Promise<CatalogCoin[]>>()
+const issuesFamCache = new Map<string, Promise<CatalogIssue[]>>()
+let collectionCache: Promise<CollectionItem[]> | null = null
+
+export function invalidateCollection(): void {
+  collectionCache = null
+}
+
+export function getCollection(): Promise<CollectionItem[]> {
+  return (collectionCache ??= fetchCollection())
+}
+
+// Paginação paralela: conta primeiro, depois puxa todas as páginas em simultâneo.
+// Latência ≈ 1 pedido (não a soma das páginas) — entrada muito mais rápida.
+const PAGE = 1000
+async function fetchAllParallel<T>(
+  total: number,
+  fetchRange: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const reqs: PromiseLike<{ data: T[] | null; error: unknown }>[] = []
+  for (let from = 0; from < total; from += PAGE) reqs.push(fetchRange(from, Math.min(from + PAGE, total) - 1))
+  const results = await Promise.all(reqs)
+  const all: T[] = []
+  for (const r of results) {
+    if (r.error) throw r.error
+    if (r.data) all.push(...r.data)
   }
   return all
+}
+
+async function fetchCollection(): Promise<CollectionItem[]> {
+  const { count, error } = await supabase.from('collection').select('id', { count: 'exact', head: true })
+  if (error) throw error
+  return fetchAllParallel<CollectionItem>(count ?? 0, (from, to) =>
+    supabase.from('collection').select('*').range(from, to),
+  )
+}
+
+// Catálogo só do grupo de família activo (lazy) — evita descarregar o catálogo
+// inteiro (>13k tipos) quando a vista só mostra, ex., o euro (~800 tipos).
+export function getCatalogCoinsByFamilias(familias: string[]): Promise<CatalogCoin[]> {
+  const key = [...familias].sort().join(',')
+  let p = coinsFamCache.get(key)
+  if (!p) {
+    p = fetchCoinsByFamilias(familias)
+    coinsFamCache.set(key, p)
+  }
+  return p
+}
+
+async function fetchCoinsByFamilias(familias: string[]): Promise<CatalogCoin[]> {
+  const { count, error } = await supabase
+    .from('catalog_coins')
+    .select('id', { count: 'exact', head: true })
+    .in('familia', familias)
+  if (error) throw error
+  return fetchAllParallel<CatalogCoin>(count ?? 0, (from, to) =>
+    supabase
+      .from('catalog_coins')
+      .select(COLS_COIN)
+      .in('familia', familias)
+      .order('pais_nome', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: CatalogCoin[] | null; error: unknown }>,
+  )
+}
+
+export function getIssuesByFamilias(familias: string[]): Promise<CatalogIssue[]> {
+  const key = [...familias].sort().join(',')
+  let p = issuesFamCache.get(key)
+  if (!p) {
+    p = fetchIssuesByFamilias(familias)
+    issuesFamCache.set(key, p)
+  }
+  return p
+}
+
+async function fetchIssuesByFamilias(familias: string[]): Promise<CatalogIssue[]> {
+  const total = await countIssuesByFamilias(familias)
+  return fetchAllParallel<CatalogIssue>(total, (from, to) =>
+    supabase
+      .from('catalog_issues')
+      .select('*, catalog_coins!inner(familia)')
+      .in('catalog_coins.familia', familias)
+      .order('ano_gregoriano', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: CatalogIssue[] | null; error: unknown }>,
+  )
+}
+
+// Contagem de variantes por grupo (para os separadores) — sem trazer linhas.
+export async function countIssuesByFamilias(familias: string[]): Promise<number> {
+  const { count, error } = await supabase
+    .from('catalog_issues')
+    .select('id, catalog_coins!inner(familia)', { count: 'exact', head: true })
+    .in('catalog_coins.familia', familias)
+  if (error) throw error
+  return count ?? 0
 }
 
 export interface CollectionUpsert {
@@ -189,6 +273,7 @@ export async function upsertCollectionItem(input: CollectionUpsert): Promise<Col
       .select()
       .single()
     if (error) throw error
+    invalidateCollection()
     return data
   }
 
@@ -204,6 +289,7 @@ export async function upsertCollectionItem(input: CollectionUpsert): Promise<Col
     .select()
     .single()
   if (error) throw error
+  invalidateCollection()
   return data
 }
 
@@ -219,4 +305,5 @@ export async function applyToAllYears(
     .update({ valor_base: valorBase, foto1: foto })
     .eq('catalog_coin_id', catalogCoinId)
   if (error) throw error
+  invalidateCollection()
 }
