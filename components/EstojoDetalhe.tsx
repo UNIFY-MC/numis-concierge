@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Flag from '@/components/Flag'
-import { getConteudoEstojo, getEstojos, type EstojoConteudoItem, type Estojo } from '@/lib/estojos'
+import AdicionarMoedaEstojo from '@/components/AdicionarMoedaEstojo'
+import { getConteudoEstojo, getEstojo, removerDoEstojo, type EstojoConteudoItem, type Estojo } from '@/lib/estojos'
 
 const FORMATO_CURTO: Record<string, string> = {
   bnc: 'BNC',
@@ -16,20 +17,23 @@ const FORMATO_CURTO: Record<string, string> = {
 export default function EstojoDetalhe({ id }: { id: string }) {
   const [estojo, setEstojo] = useState<Estojo | null>(null)
   const [itens, setItens] = useState<EstojoConteudoItem[] | null>(null)
+  const [adicionar, setAdicionar] = useState(false)
+
+  async function carregar() {
+    const [e, conteudo] = await Promise.all([getEstojo(id), getConteudoEstojo(id)])
+    setEstojo(e)
+    setItens(conteudo)
+  }
 
   useEffect(() => {
-    let alive = true
-    Promise.all([getEstojos(), getConteudoEstojo(id)])
-      .then(([estojos, conteudo]) => {
-        if (!alive) return
-        setEstojo(estojos.find((e) => e.id === id) ?? null)
-        setItens(conteudo)
-      })
-      .catch(() => alive && setItens([]))
-    return () => {
-      alive = false
-    }
+    carregar().catch(() => setItens([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  async function remover(collectionId: string) {
+    await removerDoEstojo(collectionId, id)
+    await carregar()
+  }
 
   const totalExemplares = (itens ?? []).reduce((s, i) => s + i.quantidade, 0)
 
@@ -39,20 +43,27 @@ export default function EstojoDetalhe({ id }: { id: string }) {
         ← Estojos
       </Link>
 
-      <header className="mb-6">
-        <h1 className="font-serif text-3xl font-semibold text-mp-gold-strong">{estojo?.nome ?? 'Estojo'}</h1>
-        {itens && (
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-serif text-3xl font-semibold text-mp-gold-strong">{estojo?.nome ?? 'Estojo'}</h1>
           <p className="mt-1 font-sans text-sm text-mp-ink-soft">
-            {itens.length} moedas · {totalExemplares} exemplares
+            {estojo?.localizacao && <span className="text-mp-ink">📍 {estojo.localizacao} · </span>}
+            {itens && `${itens.length} moedas · ${totalExemplares} exemplares`}
           </p>
-        )}
+        </div>
+        <button
+          onClick={() => setAdicionar(true)}
+          className="shrink-0 rounded-xl bg-mp-gold px-4 py-2.5 font-sans text-sm font-semibold text-white hover:bg-mp-gold-strong"
+        >
+          + Adicionar moeda
+        </button>
       </header>
 
       {itens === null ? (
         <p className="font-sans text-sm text-mp-ink-soft">A carregar…</p>
       ) : itens.length === 0 ? (
         <p className="rounded-2xl border border-mp-border bg-mp-surface p-6 font-sans text-sm text-mp-ink-soft">
-          Este estojo ainda não tem moedas.
+          Este estojo ainda não tem moedas. Usa “Adicionar moeda” para pesquisar e registar o que aqui guardas.
         </p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-mp-border bg-mp-surface">
@@ -63,6 +74,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
                 <th className="px-4 py-3 font-semibold">Ano</th>
                 <th className="px-4 py-3 font-semibold">Formato</th>
                 <th className="px-4 py-3 text-right font-semibold">Qtd</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -80,11 +92,30 @@ export default function EstojoDetalhe({ id }: { id: string }) {
                   <td className="px-4 py-3 text-mp-ink-soft">{i.ano ?? '—'}</td>
                   <td className="px-4 py-3 text-mp-ink-soft">{i.formato ? FORMATO_CURTO[i.formato] ?? i.formato : '—'}</td>
                   <td className="px-4 py-3 text-right font-medium text-mp-ink">{i.quantidade}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => remover(i.collectionId)}
+                      title="Retirar deste estojo"
+                      className="rounded-lg px-2 py-1 text-xs text-mp-falta hover:bg-mp-falta-bg"
+                    >
+                      Retirar
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {adicionar && (
+        <AdicionarMoedaEstojo
+          estojoId={id}
+          onClose={() => setAdicionar(false)}
+          onAdded={async () => {
+            await carregar()
+          }}
+        />
       )}
     </div>
   )

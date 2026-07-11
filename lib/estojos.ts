@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { invalidateCollection } from './catalog'
 
 export interface Estojo {
   id: string
@@ -6,7 +7,22 @@ export interface Estojo {
   tipo: string | null
   cor: string | null
   descricao: string | null
+  localizacao: string | null
 }
+
+export interface MoedaCatalogo {
+  catalogCoinId: string
+  paisCodigo: string
+  paisNome: string | null
+  denominacao: string | null
+  titulo: string
+  valorFacial: number | null
+  familia: string | null
+  anoInicio: number | null
+  anoFim: number | null
+}
+
+const ESTOJO_COLS = 'id, nome, tipo, cor, descricao, localizacao'
 
 export interface EstojoResumo extends Estojo {
   moedas: number // exemplares distintos (linhas de colecção) neste estojo
@@ -36,10 +52,34 @@ async function uid(): Promise<string> {
 export async function getEstojos(): Promise<Estojo[]> {
   const { data, error } = await supabase
     .from('estojos')
-    .select('id, nome, tipo, cor, descricao')
+    .select(ESTOJO_COLS)
     .order('nome', { ascending: true })
   if (error) throw error
   return data ?? []
+}
+
+export async function getEstojo(id: string): Promise<Estojo | null> {
+  const { data } = await supabase.from('estojos').select(ESTOJO_COLS).eq('id', id).maybeSingle()
+  return data ?? null
+}
+
+export async function criarEstojo(input: {
+  nome: string
+  tipo?: string | null
+  localizacao?: string | null
+}): Promise<Estojo> {
+  const { data, error } = await supabase
+    .from('estojos')
+    .insert({
+      user_id: await uid(),
+      nome: input.nome.trim(),
+      tipo: input.tipo?.trim() || null,
+      localizacao: input.localizacao?.trim() || null,
+    })
+    .select(ESTOJO_COLS)
+    .single()
+  if (error) throw error
+  return data
 }
 
 // Encontra pelo nome (case-insensitive) ou cria — suporta o fluxo "cria à medida".
@@ -47,7 +87,7 @@ export async function findOrCreateEstojo(nome: string, tipo?: string | null): Pr
   const limpo = nome.trim()
   const { data: existing } = await supabase
     .from('estojos')
-    .select('id, nome, tipo, cor, descricao')
+    .select(ESTOJO_COLS)
     .ilike('nome', limpo)
     .maybeSingle()
   if (existing) return existing
@@ -55,10 +95,116 @@ export async function findOrCreateEstojo(nome: string, tipo?: string | null): Pr
   const { data, error } = await supabase
     .from('estojos')
     .insert({ user_id: await uid(), nome: limpo, tipo: tipo ?? null })
-    .select('id, nome, tipo, cor, descricao')
+    .select(ESTOJO_COLS)
     .single()
   if (error) throw error
   return data
+}
+
+// Pesquisa de tipos no catálogo (por país, denominação, título ou tema).
+export async function buscarMoedasCatalogo(termo: string): Promise<MoedaCatalogo[]> {
+  const t = termo.trim().replace(/[,()%]/g, ' ').trim()
+  if (t.length < 2) return []
+  const { data, error } = await supabase
+    .from('catalog_coins')
+    .select('id, pais_codigo, pais_nome, denominacao, titulo, valor_facial, familia, ano_inicio, ano_fim')
+    .or(`pais_nome.ilike.%${t}%,denominacao.ilike.%${t}%,titulo.ilike.%${t}%,tema.ilike.%${t}%`)
+    .order('pais_nome', { ascending: true })
+    .limit(40)
+  if (error) throw error
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    catalogCoinId: r.id as string,
+    paisCodigo: r.pais_codigo as string,
+    paisNome: (r.pais_nome as string) ?? null,
+    denominacao: (r.denominacao as string) ?? null,
+    titulo: r.titulo as string,
+    valorFacial: r.valor_facial != null ? Number(r.valor_facial) : null,
+    familia: (r.familia as string) ?? null,
+    anoInicio: r.ano_inicio != null ? Number(r.ano_inicio) : null,
+    anoFim: r.ano_fim != null ? Number(r.ano_fim) : null,
+  }))
+}
+
+// Adiciona um exemplar a um estojo, garantindo a posse na colecção (regista o
+// que se tem ao arrumá-lo). Mantém posse >= soma das alocações.
+export async function adicionarMoedaAoEstojo(input: {
+  estojoId: string
+  catalogCoinId: string
+  catalogIssueId: string
+  formato: string | null
+  quantidade: number
+}): Promise<void> {
+  const qtd = Math.max(1, input.quantidade)
+  const meu = await uid()
+
+  // 1. garantir a linha de posse (issue, formato)
+  let q = supabase.from('collection').select('id, quantidade').eq('catalog_issue_id', input.catalogIssueId)
+  q = input.formato ? q.eq('formato_posse', input.formato) : q.is('formato_posse', null)
+  const { data: posse } = await q.limit(1).maybeSingle()
+
+  let collectionId: string
+  if (posse) {
+    collectionId = posse.id
+  } else {
+    const { data, error } = await supabase
+      .from('collection')
+      .insert({
+        user_id: meu,
+        catalog_coin_id: input.catalogCoinId,
+        catalog_issue_id: input.catalogIssueId,
+        formato_posse: input.formato,
+        quantidade: qtd,
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    collectionId = data.id
+  }
+
+  // 2. alocar ao estojo (soma se já lá estava)
+  const { data: aloc } = await supabase
+    .from('colecao_estojo')
+    .select('id, quantidade')
+    .eq('collection_id', collectionId)
+    .eq('estojo_id', input.estojoId)
+    .maybeSingle()
+  if (aloc) {
+    const { error } = await supabase
+      .from('colecao_estojo')
+      .update({ quantidade: aloc.quantidade + qtd })
+      .eq('id', aloc.id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('colecao_estojo').insert({
+      user_id: meu,
+      collection_id: collectionId,
+      estojo_id: input.estojoId,
+      quantidade: qtd,
+    })
+    if (error) throw error
+  }
+
+  // 3. posse total nunca inferior à soma alocada
+  const { data: todas } = await supabase
+    .from('colecao_estojo')
+    .select('quantidade')
+    .eq('collection_id', collectionId)
+  const somaAlocada = (todas ?? []).reduce((s: number, a: { quantidade: number }) => s + a.quantidade, 0)
+  const posseAtual = posse?.quantidade ?? qtd
+  if (somaAlocada > posseAtual) {
+    await supabase.from('collection').update({ quantidade: somaAlocada }).eq('id', collectionId)
+  }
+  invalidateCollection()
+}
+
+// Retira um exemplar de um estojo (não apaga a posse — só a localização).
+export async function removerDoEstojo(collectionId: string, estojoId: string): Promise<void> {
+  const { error } = await supabase
+    .from('colecao_estojo')
+    .delete()
+    .eq('collection_id', collectionId)
+    .eq('estojo_id', estojoId)
+  if (error) throw error
 }
 
 // Substitui a alocação de um exemplar (linha da colecção) por um único estojo.
