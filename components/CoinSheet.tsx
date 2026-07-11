@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { denomCurta, FORMATOS_COLECAO, FORMATO_LABEL, formatosDe } from '@/lib/types'
 import { GRADES, GRADE_DEFAULT, gradeMult, eur } from '@/lib/valor'
 import type { DisplayRow, Estado, FormatoColecao, CollectionItem } from '@/lib/types'
-import { getEstojos, getEstojoPorColecao } from '@/lib/estojos'
+import { getEstojos, getAlocacoesDetalhe, type Estojo } from '@/lib/estojos'
 import CoinDisc from './CoinDisc'
 import Flag from './Flag'
 import TagsEditor from './TagsEditor'
 
 export interface CoinSheetSave {
   // Uma moeda pode existir em vários formatos ao mesmo tempo, cada um o seu exemplar.
-  formatos: { formato: FormatoColecao; quantidade: number; grau: string; valorBase: number | null; estojo: string | null }[]
+  formatos: { formato: FormatoColecao; quantidade: number; grau: string; valorBase: number | null; estojos: { estojoId: string; quantidade: number }[] }[]
   removidos: FormatoColecao[]
   casaMoeda: string | null
   foto: string | null
@@ -27,7 +27,8 @@ interface CoinSheetProps {
   onSave: (input: CoinSheetSave) => Promise<void>
 }
 
-interface EstadoFormato { ativo: boolean; qtd: number; grau: string; valor: string; estojo: string }
+interface AlocEstojo { estojoId: string; quantidade: number }
+interface EstadoFormato { ativo: boolean; qtd: number; grau: string; valor: string; estojos: AlocEstojo[] }
 
 const FORMATO_COR: Record<FormatoColecao, string> = {
   carteira_fdc: 'border-mp-caderneta bg-mp-caderneta-bg text-mp-caderneta',
@@ -48,28 +49,35 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
     const o = {} as Record<FormatoColecao, EstadoFormato>
     for (const { v } of FORMATOS_COLECAO) {
       const ex = exDe(v)
-      o[v] = { ativo: !!ex, qtd: ex?.quantidade ?? 1, grau: ex?.grau ?? GRADE_DEFAULT, valor: String(ex?.valor_base ?? facial), estojo: '' }
+      o[v] = { ativo: !!ex, qtd: ex?.quantidade ?? 1, grau: ex?.grau ?? GRADE_DEFAULT, valor: String(ex?.valor_base ?? facial), estojos: [] }
     }
     return o
   })
   const setF = (v: FormatoColecao, patch: Partial<EstadoFormato>) =>
     setForm((cur) => ({ ...cur, [v]: { ...cur[v], ...patch } }))
+  // Linhas de estojo (uma moeda pode estar em vários): adicionar/editar/remover.
+  const addEstojo = (v: FormatoColecao) =>
+    setForm((cur) => ({ ...cur, [v]: { ...cur[v], estojos: [...cur[v].estojos, { estojoId: '', quantidade: 1 }] } }))
+  const setEstojo = (v: FormatoColecao, idx: number, patch: Partial<AlocEstojo>) =>
+    setForm((cur) => ({ ...cur, [v]: { ...cur[v], estojos: cur[v].estojos.map((e, i) => (i === idx ? { ...e, ...patch } : e)) } }))
+  const delEstojo = (v: FormatoColecao, idx: number) =>
+    setForm((cur) => ({ ...cur, [v]: { ...cur[v], estojos: cur[v].estojos.filter((_, i) => i !== idx) } }))
 
-  // Estojos existentes (autocomplete) + pré-preenche o estojo de cada formato já guardado.
-  const [estojoOpcoes, setEstojoOpcoes] = useState<string[]>([])
+  // Estojos criados (só estes aparecem no select) + pré-preenche as alocações de cada formato.
+  const [estojoLista, setEstojoLista] = useState<Estojo[]>([])
   useEffect(() => {
     let alive = true
-    getEstojos().then((es) => { if (alive) setEstojoOpcoes(es.map((e) => e.nome)) }).catch(() => {})
+    getEstojos().then((es) => { if (alive) setEstojoLista(es) }).catch(() => {})
     const comId = row.itens.filter((i) => i.quantidade > 0)
     const ids = comId.map((i) => i.id)
     if (ids.length) {
-      getEstojoPorColecao(ids).then((map) => {
+      getAlocacoesDetalhe(ids).then((map) => {
         if (!alive) return
         setForm((cur) => {
           const next = { ...cur }
           for (const it of comId) {
             const fmt = it.formato_posse as FormatoColecao | null
-            if (fmt && next[fmt] && map[it.id]) next[fmt] = { ...next[fmt], estojo: map[it.id] }
+            if (fmt && next[fmt] && map[it.id]?.length) next[fmt] = { ...next[fmt], estojos: map[it.id] }
           }
           return next
         })
@@ -131,7 +139,7 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
         quantidade: Math.max(1, form[v].qtd),
         grau: form[v].grau,
         valorBase: parseFloat(form[v].valor) || null,
-        estojo: form[v].estojo.trim() || null,
+        estojos: form[v].estojos.filter((e) => e.estojoId && e.quantidade > 0),
       }))
       const tinha = new Set(row.itens.filter((i) => i.quantidade > 0).map((i) => i.formato_posse))
       const removidos = visiveis.filter((v) => !form[v].ativo && tinha.has(v))
@@ -253,21 +261,41 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
                         <input type="number" step="0.01" min="0" value={st.valor}
                           onChange={(e) => setF(v, { valor: e.target.value })} className={inp} />
                       </label>
-                      <label className="col-span-3 block">
-                        <span className="text-[10px] text-mp-ink-faint">Estojo — onde está guardada</span>
-                        <input list="estojo-opcoes" value={st.estojo}
-                          onChange={(e) => setF(v, { estojo: e.target.value })}
-                          placeholder="ex.: Álbum Euros, Caixa 1, Moldura sala…" className={inp} />
-                      </label>
+                      <div className="col-span-3">
+                        <span className="text-[10px] text-mp-ink-faint">Estojos — onde está guardada</span>
+                        {estojoLista.length === 0 ? (
+                          <p className="mt-1 text-[11px] text-mp-ink-faint">
+                            Ainda não tens estojos. Cria em <a href="/estojos" className="text-mp-gold-strong underline">Estojos</a>.
+                          </p>
+                        ) : (
+                          <div className="mt-1 space-y-1.5">
+                            {st.estojos.map((al, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <select value={al.estojoId} onChange={(e) => setEstojo(v, idx, { estojoId: e.target.value })} className={inp + ' flex-1'}>
+                                  <option value="">— escolher estojo —</option>
+                                  {estojoLista.map((e) => (
+                                    <option key={e.id} value={e.id}>{e.nome}{e.localizacao ? ` · ${e.localizacao}` : ''}</option>
+                                  ))}
+                                </select>
+                                <input type="number" min={1} value={al.quantidade}
+                                  onChange={(e) => setEstojo(v, idx, { quantidade: parseInt(e.target.value, 10) || 1 })}
+                                  className={inp + ' w-16'} title="Quantidade neste estojo" />
+                                <button type="button" onClick={() => delEstojo(v, idx)}
+                                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-mp-falta hover:bg-mp-falta-bg" aria-label="Remover estojo">×</button>
+                              </div>
+                            ))}
+                            <button type="button" onClick={() => addEstojo(v)} className="text-[11px] font-medium text-mp-gold-strong hover:underline">
+                              + adicionar estojo
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
               )
             })}
           </div>
-          <datalist id="estojo-opcoes">
-            {estojoOpcoes.map((n) => <option key={n} value={n} />)}
-          </datalist>
         </div>
 
         {mostraCasa && tenho && (

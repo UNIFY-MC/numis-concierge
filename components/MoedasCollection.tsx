@@ -5,7 +5,7 @@ import {
   getCatalogCoinsByFamilias, getIssuesByFamilias, getCollection, countIssuesByFamilias,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
-import { setAlocacaoUnica, getTodasAlocacoes } from '@/lib/estojos'
+import { setAlocacoes, getTodasAlocacoes } from '@/lib/estojos'
 import { estadoDe, itemPrincipal } from '@/lib/types'
 import { valorReal, valorColecao } from '@/lib/valor'
 import { casaEmissor } from '@/lib/emissores'
@@ -249,7 +249,7 @@ export default function MoedasCollection() {
         quantidade: Math.max(1, f.quantidade), formatoPosse: f.formato,
         grau: f.grau, valorBase: f.valorBase, ...comuns,
       })
-      await setAlocacaoUnica(saved.id, f.estojo, Math.max(1, f.quantidade))
+      await setAlocacoes(saved.id, f.estojos)
       saves.push(saved)
     }
     // Formatos desmarcados que existiam: pôr quantidade 0 (RLS não permite apagar) e limpar estojo.
@@ -258,7 +258,7 @@ export default function MoedasCollection() {
         catalogCoinId: coin.id, catalogIssueId: issue.id,
         quantidade: 0, formatoPosse: fr, grau: null, valorBase: null, ...comuns,
       })
-      await setAlocacaoUnica(saved.id, null, 1)
+      await setAlocacoes(saved.id, [])
       saves.push(saved)
     }
     if (input.aplicarTodos) await applyToAllYears(coin.id, input.formatos[0]?.valorBase ?? null, input.foto)

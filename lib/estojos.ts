@@ -102,6 +102,49 @@ export async function findOrCreateEstojo(nome: string, tipo?: string | null): Pr
   return data
 }
 
+export interface PaisCatalogo {
+  codigo: string
+  nome: string
+  total: number
+}
+
+// Países presentes no catálogo (para a pesquisa em cascata começar pelo país).
+export async function getPaisesCatalogo(): Promise<PaisCatalogo[]> {
+  const { data, error } = await supabase.rpc('paises_catalogo')
+  if (error) throw error
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    codigo: r.pais_codigo as string,
+    nome: (r.pais_nome as string) ?? (r.pais_codigo as string),
+    total: Number(r.total ?? 0),
+  }))
+}
+
+function mapMoedas(data: Record<string, unknown>[]): MoedaCatalogo[] {
+  return data.map((r) => ({
+    catalogCoinId: r.id as string,
+    paisCodigo: r.pais_codigo as string,
+    paisNome: (r.pais_nome as string) ?? null,
+    denominacao: (r.denominacao as string) ?? null,
+    titulo: r.titulo as string,
+    valorFacial: r.valor_facial != null ? Number(r.valor_facial) : null,
+    familia: (r.familia as string) ?? null,
+    anoInicio: r.ano_inicio != null ? Number(r.ano_inicio) : null,
+    anoFim: r.ano_fim != null ? Number(r.ano_fim) : null,
+  }))
+}
+
+const MOEDA_COLS = 'id, pais_codigo, pais_nome, denominacao, titulo, valor_facial, familia, ano_inicio, ano_fim'
+
+// Moedas (tipos) de um país, filtradas por um termo opcional (denominação/tema).
+export async function buscarMoedasDoPais(paisCodigo: string, termo: string): Promise<MoedaCatalogo[]> {
+  let q = supabase.from('catalog_coins').select(MOEDA_COLS).eq('pais_codigo', paisCodigo)
+  const t = termo.trim().replace(/[,()%]/g, ' ').trim()
+  if (t.length >= 1) q = q.or(`denominacao.ilike.%${t}%,titulo.ilike.%${t}%,tema.ilike.%${t}%`)
+  const { data, error } = await q.order('valor_facial', { ascending: true }).limit(120)
+  if (error) throw error
+  return mapMoedas((data ?? []) as Record<string, unknown>[])
+}
+
 // Pesquisa de tipos no catálogo (por país, denominação, título ou tema).
 export async function buscarMoedasCatalogo(termo: string): Promise<MoedaCatalogo[]> {
   const t = termo.trim().replace(/[,()%]/g, ' ').trim()
@@ -206,6 +249,74 @@ export async function removerDoEstojo(collectionId: string, estojoId: string): P
     .eq('collection_id', collectionId)
     .eq('estojo_id', estojoId)
   if (error) throw error
+}
+
+export interface AlocacaoEdit {
+  estojoId: string
+  quantidade: number
+}
+
+// Alocações actuais de um exemplar (para pré-preencher a ficha).
+export async function getAlocacoesDetalhe(
+  collectionIds: string[],
+): Promise<Record<string, AlocacaoEdit[]>> {
+  if (collectionIds.length === 0) return {}
+  const { data, error } = await supabase
+    .from('colecao_estojo')
+    .select('collection_id, estojo_id, quantidade')
+    .in('collection_id', collectionIds)
+  if (error) throw error
+  const map: Record<string, AlocacaoEdit[]> = {}
+  for (const r of (data ?? []) as { collection_id: string; estojo_id: string; quantidade: number }[]) {
+    ;(map[r.collection_id] ??= []).push({ estojoId: r.estojo_id, quantidade: r.quantidade })
+  }
+  return map
+}
+
+// Substitui o conjunto de alocações de um exemplar por estas (uma moeda pode estar
+// em vários estojos). Mantém a posse >= soma alocada.
+export async function setAlocacoes(collectionId: string, alocs: AlocacaoEdit[]): Promise<void> {
+  const meu = await uid()
+  const validos = alocs.filter((a) => a.estojoId && a.quantidade > 0)
+  const manter = validos.map((a) => a.estojoId)
+
+  // apaga as alocações que já não constam
+  let del = supabase.from('colecao_estojo').delete().eq('collection_id', collectionId)
+  if (manter.length) del = del.not('estojo_id', 'in', `(${manter.join(',')})`)
+  const rDel = await del
+  if (rDel.error) throw rDel.error
+
+  // upsert de cada estojo mantido
+  for (const a of validos) {
+    const { data: ex } = await supabase
+      .from('colecao_estojo')
+      .select('id')
+      .eq('collection_id', collectionId)
+      .eq('estojo_id', a.estojoId)
+      .maybeSingle()
+    if (ex) {
+      const { error } = await supabase.from('colecao_estojo').update({ quantidade: a.quantidade }).eq('id', ex.id)
+      if (error) throw error
+    } else {
+      const { error } = await supabase.from('colecao_estojo').insert({
+        user_id: meu,
+        collection_id: collectionId,
+        estojo_id: a.estojoId,
+        quantidade: a.quantidade,
+      })
+      if (error) throw error
+    }
+  }
+
+  // posse total nunca inferior à soma alocada
+  const soma = validos.reduce((s, a) => s + a.quantidade, 0)
+  if (soma > 0) {
+    const { data: c } = await supabase.from('collection').select('quantidade').eq('id', collectionId).maybeSingle()
+    if (c && c.quantidade < soma) {
+      await supabase.from('collection').update({ quantidade: soma }).eq('id', collectionId)
+    }
+  }
+  invalidateCollection()
 }
 
 // Substitui a alocação de um exemplar (linha da colecção) por um único estojo.

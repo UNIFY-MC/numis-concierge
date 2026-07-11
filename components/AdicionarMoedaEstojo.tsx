@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import Flag from '@/components/Flag'
-import { buscarMoedasCatalogo, adicionarMoedaAoEstojo, type MoedaCatalogo } from '@/lib/estojos'
+import {
+  getPaisesCatalogo,
+  buscarMoedasDoPais,
+  adicionarMoedaAoEstojo,
+  type MoedaCatalogo,
+  type PaisCatalogo,
+} from '@/lib/estojos'
 import { getIssuesForCoin } from '@/lib/catalog'
 import { formatosDe, FORMATO_LABEL } from '@/lib/types'
 import type { CatalogIssue, FormatoColecao } from '@/lib/types'
@@ -18,6 +24,8 @@ export default function AdicionarMoedaEstojo({
   onAdded: () => void
   onClose: () => void
 }) {
+  const [paises, setPaises] = useState<PaisCatalogo[]>([])
+  const [paisSel, setPaisSel] = useState('')
   const [termo, setTermo] = useState('')
   const [resultados, setResultados] = useState<MoedaCatalogo[]>([])
   const [buscando, setBuscando] = useState(false)
@@ -28,35 +36,33 @@ export default function AdicionarMoedaEstojo({
   const [qtd, setQtd] = useState(1)
   const [saving, setSaving] = useState(false)
 
-  // Pesquisa com debounce leve.
   useEffect(() => {
-    if (tipo) return
-    const t = termo.trim()
-    if (t.length < 2) {
-      setResultados([])
-      return
-    }
+    getPaisesCatalogo().then(setPaises).catch(() => setPaises([]))
+  }, [])
+
+  // Ao ter país escolhido, lista/filtra as moedas DESSE país (termo opcional).
+  useEffect(() => {
+    if (!paisSel || tipo) return
     let alive = true
     setBuscando(true)
     const id = setTimeout(() => {
-      buscarMoedasCatalogo(t)
+      buscarMoedasDoPais(paisSel, termo)
         .then((r) => alive && setResultados(r))
         .catch(() => alive && setResultados([]))
         .finally(() => alive && setBuscando(false))
-    }, 250)
+    }, 200)
     return () => {
       alive = false
       clearTimeout(id)
     }
-  }, [termo, tipo])
+  }, [paisSel, termo, tipo])
 
   async function escolherTipo(m: MoedaCatalogo) {
     setTipo(m)
     const its = await getIssuesForCoin(m.catalogCoinId)
     setIssues(its)
     setIssueId(its[0]?.id ?? '')
-    const fmts = formatosDe(m.familia)
-    setFormato(fmts[0] ?? '')
+    setFormato(formatosDe(m.familia)[0] ?? '')
   }
 
   async function adicionar() {
@@ -88,38 +94,57 @@ export default function AdicionarMoedaEstojo({
 
         {!tipo ? (
           <>
-            <input
-              autoFocus
-              value={termo}
-              onChange={(e) => setTermo(e.target.value)}
-              placeholder="Pesquisar por país, denominação ou tipo…"
-              className={inp}
-            />
-            <div className="mt-3 space-y-1">
-              {buscando && <p className="px-1 py-2 text-sm text-mp-ink-faint">A pesquisar…</p>}
-              {!buscando && termo.trim().length >= 2 && resultados.length === 0 && (
-                <p className="px-1 py-2 text-sm text-mp-ink-faint">Nada encontrado.</p>
-              )}
-              {resultados.map((m) => (
-                <button
-                  key={m.catalogCoinId}
-                  onClick={() => escolherTipo(m)}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm hover:bg-mp-surface-muted"
-                >
-                  <Flag code={m.paisCodigo} size={18} />
-                  <span className="flex-1 text-mp-ink">
-                    {m.denominacao ?? m.titulo}
-                    <span className="text-mp-ink-faint"> · {m.paisNome}</span>
-                  </span>
-                  {(m.anoInicio || m.anoFim) && (
-                    <span className="text-xs text-mp-ink-faint">
-                      {m.anoInicio}
-                      {m.anoFim && m.anoFim !== m.anoInicio ? `–${m.anoFim}` : ''}
-                    </span>
+            {/* Passo 1: país */}
+            <label className="block mb-3">
+              <span className="text-[11px] uppercase tracking-wide text-mp-ink-faint">1 · País</span>
+              <select
+                value={paisSel}
+                onChange={(e) => { setPaisSel(e.target.value); setTermo(''); setResultados([]) }}
+                className={inp}
+              >
+                <option value="">Escolhe o país…</option>
+                {paises.map((p) => (
+                  <option key={p.codigo} value={p.codigo}>{p.nome} ({p.total})</option>
+                ))}
+              </select>
+            </label>
+
+            {/* Passo 2: filtrar as moedas do país */}
+            {paisSel && (
+              <>
+                <label className="block mb-2">
+                  <span className="text-[11px] uppercase tracking-wide text-mp-ink-faint">2 · Moeda</span>
+                  <input
+                    autoFocus
+                    value={termo}
+                    onChange={(e) => setTermo(e.target.value)}
+                    placeholder="Filtrar por denominação (ex.: 2 euro, escudo)…"
+                    className={inp}
+                  />
+                </label>
+                <div className="space-y-1">
+                  {buscando && <p className="px-1 py-2 text-sm text-mp-ink-faint">A carregar…</p>}
+                  {!buscando && resultados.length === 0 && (
+                    <p className="px-1 py-2 text-sm text-mp-ink-faint">Nada encontrado neste país.</p>
                   )}
-                </button>
-              ))}
-            </div>
+                  {resultados.map((m) => (
+                    <button
+                      key={m.catalogCoinId}
+                      onClick={() => escolherTipo(m)}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm hover:bg-mp-surface-muted"
+                    >
+                      <Flag code={m.paisCodigo} size={18} />
+                      <span className="flex-1 truncate text-mp-ink">{m.denominacao ?? m.titulo}</span>
+                      {(m.anoInicio || m.anoFim) && (
+                        <span className="shrink-0 text-xs text-mp-ink-faint">
+                          {m.anoInicio}{m.anoFim && m.anoFim !== m.anoInicio ? `–${m.anoFim}` : ''}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </>
         ) : (
           <>
