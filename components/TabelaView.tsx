@@ -58,6 +58,11 @@ const COLUNAS: ColMeta[] = [
   { key: 'mercado', label: 'Valor mercado', right: true },
 ]
 const LABEL = Object.fromEntries(COLUNAS.map((c) => [c.key, c.label])) as Record<Col, string>
+// Colunas expostas na barra de filtros visível (só aparecem se tiverem ≥2 valores).
+const FILTROS_BARRA: [Col, string][] = [
+  ['moeda', 'Moeda'], ['metal', 'Material'], ['composicao', 'Composição'],
+  ['ano', 'Ano'], ['variante', 'Variante'], ['serie', 'Reinado/Série'],
+]
 const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'variante', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'grau', 'caderneta', 'bebe', 'set', 'proof', 'normal', 'qtd', 'facial', 'mercado']
 // Chaves de coluna mantidas (preservam prefs); o rótulo/valor é o acabamento INCM.
 const FORMATO_DE_COL: Partial<Record<Col, FormatoColecao>> = { caderneta: 'carteira_fdc', bebe: 'carteira_bebe', set: 'bnc', proof: 'proof', normal: 'normal' }
@@ -451,6 +456,26 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
           {painel === 'cols' && <PainelColunas colVis={colVis} setColVis={setColVis} onClose={() => setPainel(null)} />}
           {painel === 'sort' && <PainelOrdenar sorts={sorts} setSorts={setSorts} onClose={() => setPainel(null)} />}
         </div>
+      </div>
+
+      {/* Barra de filtros visível: selects por moeda/material/ano/variante/reinado */}
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-3 py-2">
+        <span className="text-xs font-semibold text-mp-ink-soft">Filtrar:</span>
+        {(FILTROS_BARRA).map(([key, label]) => {
+          const f = filtroDaCol(key)
+          if (!f) return null
+          return (
+            <select key={key} value={f.valor} onChange={(e) => f.set(e.target.value)}
+              className={'h-8 rounded-lg border px-2 text-sm outline-none focus:border-mp-gold ' +
+                (f.valor ? 'border-mp-gold bg-mp-falta-bg font-medium text-mp-gold-strong' : 'border-mp-border bg-mp-surface text-mp-ink')}>
+              <option value="">{`${label}: todas`}</option>
+              {f.opcoes.filter((o) => o.v).map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+            </select>
+          )
+        })}
+        {temFiltro
+          ? <button onClick={() => setFiltros({})} className="ml-1 text-xs font-medium text-mp-gold-strong underline hover:text-mp-ink">limpar filtros</button>
+          : <span className="text-xs text-mp-ink-faint">escolhe um valor para filtrar a tabela</span>}
       </div>
 
       {totalPaginas > 1 && (
