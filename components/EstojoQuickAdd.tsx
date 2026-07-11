@@ -103,7 +103,7 @@ export default function EstojoQuickAdd({
       for (const i of issues.filter((x) => x.catalog_coin_id === c.id)) {
         out.push({
           coinId: c.id, issueId: i.id, ano: i.ano, anoG: anoNum(i), familia: c.familia,
-          vlabel: varianteSimples(c.titulo, i.mintmark_variante ?? null, i.etiqueta ?? null) || 'Base',
+          vlabel: varianteSimples(c.titulo, i.mintmark_variante ?? null, i.etiqueta ?? null) || 'Normal',
         })
       }
     }
