@@ -39,7 +39,12 @@ export interface EstojoConteudoItem {
   denominacao: string | null
   paisCodigo: string
   paisNome: string | null
+  serie: string | null
   ano: string | null
+  variante: string | null
+  metal: string | null
+  valorFacial: number | null
+  valorMercado: number | null
   formato: string | null
   grau: string | null
 }
@@ -452,8 +457,8 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
     .from('colecao_estojo')
     .select(
       'id, quantidade, ordem, collection:collection_id ( id, formato_posse, grau, ' +
-        'catalog_coins:catalog_coin_id ( titulo, denominacao, pais_codigo, pais_nome ), ' +
-        'catalog_issues:catalog_issue_id ( ano ) )',
+        'catalog_coins:catalog_coin_id ( titulo, denominacao, pais_codigo, pais_nome, serie, metal, valor_facial ), ' +
+        'catalog_issues:catalog_issue_id ( ano, valor_mercado, mintmark_variante, etiqueta ) )',
     )
     .eq('estojo_id', estojoId)
   if (error) throw error
@@ -466,25 +471,48 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
       id: string
       formato_posse: string | null
       grau: string | null
-      catalog_coins: { titulo: string; denominacao: string | null; pais_codigo: string; pais_nome: string | null } | null
-      catalog_issues: { ano: string | null } | null
+      catalog_coins: {
+        titulo: string; denominacao: string | null; pais_codigo: string; pais_nome: string | null
+        serie: string | null; metal: string | null; valor_facial: number | null
+      } | null
+      catalog_issues: { ano: string | null; valor_mercado: number | null; mintmark_variante: string | null; etiqueta: string | null } | null
     } | null
   }
 
   return ((data ?? []) as unknown as Row[])
     .filter((r) => r.collection)
-    .map((r) => ({
-      alocacaoId: r.id,
-      collectionId: r.collection!.id,
-      ordem: r.ordem ?? 0,
-      quantidade: r.quantidade,
-      titulo: r.collection!.catalog_coins?.titulo ?? '—',
-      denominacao: r.collection!.catalog_coins?.denominacao ?? null,
-      paisCodigo: r.collection!.catalog_coins?.pais_codigo ?? '',
-      paisNome: r.collection!.catalog_coins?.pais_nome ?? null,
-      ano: r.collection!.catalog_issues?.ano ?? null,
-      formato: r.collection!.formato_posse,
-      grau: r.collection!.grau,
-    }))
+    .map((r) => {
+      const c = r.collection!.catalog_coins
+      const i = r.collection!.catalog_issues
+      return {
+        alocacaoId: r.id,
+        collectionId: r.collection!.id,
+        ordem: r.ordem ?? 0,
+        quantidade: r.quantidade,
+        titulo: c?.titulo ?? '—',
+        denominacao: c?.denominacao ?? null,
+        paisCodigo: c?.pais_codigo ?? '',
+        paisNome: c?.pais_nome ?? null,
+        serie: c?.serie ?? null,
+        ano: i?.ano ?? null,
+        variante: varianteSimples(c?.titulo ?? null, i?.mintmark_variante ?? null, i?.etiqueta ?? null),
+        metal: c?.metal ?? null,
+        valorFacial: c?.valor_facial != null ? Number(c.valor_facial) : null,
+        valorMercado: i?.valor_mercado != null ? Number(i.valor_mercado) : null,
+        formato: r.collection!.formato_posse,
+        grau: r.collection!.grau,
+      }
+    })
     .sort((a, b) => a.ordem - b.ordem)
+}
+
+const VARIANTE_RE = /pattern|countermark|contramarca|aberto|fechado|m[oó]dulo|mule|h[ií]brid|error|erro|restrike|essai|pi[eé]fort|variet|variante|overdate|sobredata|ensaio|prova/i
+export function varianteSimples(titulo: string | null, mintmark: string | null, etiqueta: string | null): string | null {
+  const parts: string[] = []
+  const m = (titulo ?? '').match(/\(([^)]+)\)\s*$/)
+  if (m && VARIANTE_RE.test(m[1])) parts.push(m[1].trim())
+  if (mintmark) parts.push(String(mintmark))
+  if (etiqueta) parts.push(String(etiqueta))
+  const out = [...new Set(parts)].join(' · ')
+  return out || null
 }
