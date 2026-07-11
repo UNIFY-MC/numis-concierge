@@ -26,6 +26,9 @@ const LIMIT = li >= 0 ? parseInt(process.argv[li + 1], 10) : Infinity
 // --familia euro (defeito: as 4 famílias euro) | historico | all
 const fi = process.argv.indexOf('--familia')
 const FAM_ARG = fi >= 0 ? process.argv[fi + 1] : 'euro'
+// --pais pt (opcional): restringe a um país
+const pi = process.argv.indexOf('--pais')
+const PAIS = pi >= 0 ? process.argv[pi + 1] : null
 const FAMILIAS =
   FAM_ARG === 'all' ? null
   : FAM_ARG === 'historico' ? ['historico']
@@ -39,7 +42,7 @@ const jaNosso = (u) => !!u && u.startsWith(PUBLIC_BASE)
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
 
 async function baixar(url) {
-  const r = await fetch(url, { headers: { 'User-Agent': UA } })
+  const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   const ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0].trim()
   const buf = Buffer.from(await r.arrayBuffer())
@@ -62,6 +65,7 @@ async function main() {
     .or('anverso_img.not.is.null,reverso_img.not.is.null')
     .order('pais_nome')
   if (FAMILIAS) q = q.in('familia', FAMILIAS)
+  if (PAIS) q = q.eq('pais_codigo', PAIS)
   // Supabase devolve no máximo 1000 por pedido — pagina-se a leitura
   const coins = []
   for (let de = 0; ; de += 1000) {

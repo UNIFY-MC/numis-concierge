@@ -75,3 +75,9 @@ scripts/.escudos-uncertos.json
 scripts/.escudos-revisao.txt
 scripts/.euro-coverage.json
 scripts/.euro-faltam.json
+scripts/numista-novos.json
+# Artefactos do import histórico Numista (regeneráveis pelos scripts)
+scripts/.numista-portugal-todos.json
+scripts/.hist-ambiguos-pt.json
+scripts/.import-*.log
+scripts/.fotos-*.log
