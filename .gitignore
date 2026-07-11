@@ -85,3 +85,5 @@ scripts/.fotos-*.log
 .nirvana/
 /outputs/
 scripts/_gomes_*.mjs
+scripts/_gomes_*.py
+scripts/_reocr_*.py
