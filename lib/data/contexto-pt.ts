@@ -10,6 +10,14 @@ export interface ContextoSerie {
 
 export const CONTEXTO: Record<string, ContextoSerie> = {
   // ── Monarquia ──
+  'D. Afonso I': { periodo: '1139–1185', cognome: 'o Conquistador', contexto: 'Primeiro Rei de Portugal. Após a vitória de Ourique (1139) e o reconhecimento pelo Tratado de Zamora (1143), fundou o reino e tomou Lisboa aos mouros (1147). Cunhou as primeiras moedas portuguesas — dinheiros e morabitinos.' },
+  'D. Sancho I': { periodo: '1185–1211', cognome: 'o Povoador', contexto: 'Dedicou-se a povoar e consolidar o reino, fundando vilas e concelhos e juntando um grande tesouro. Cunhou o morabitino de ouro. Perdeu e recuperou praças no Sul face aos Almóadas.' },
+  'D. Afonso II': { periodo: '1211–1223', cognome: 'o Gordo', contexto: 'Promulgou as primeiras leis gerais do reino nas Cortes de Coimbra (1211) e organizou a administração e a fazenda. Entrou em conflito com a Igreja, que o excomungou.' },
+  'D. Beatriz': { periodo: '1383–1384', cognome: 'rainha contestada', contexto: 'Filha de D. Fernando I e casada com Juan I de Castela; a sua aclamação desencadeou a Crise de 1383-85. A resistência liderada pelo Mestre de Avis culminou em Aljubarrota (1385).' },
+  'D. Henrique I': { periodo: '1578–1580', cognome: 'o Cardeal-Rei', contexto: 'Cardeal e tio-avô de D. Sebastião, sucedeu-lhe já idoso e sem descendência. A sua morte, sem herdeiro claro, abriu a crise sucessória que levou à União Ibérica.' },
+  'Governadores': { periodo: '1580', cognome: 'Governadores do Reino', contexto: 'Junta de governadores que administrou o reino no interregno de 1580, entre a morte do Cardeal-Rei e a aclamação de Filipe I, durante a disputa sucessória.' },
+  'D. António I': { periodo: '1580–1583', cognome: 'o Prior do Crato', contexto: 'Aclamado Rei pela resistência à União Ibérica, foi derrotado em Alcântara (1580) por Espanha. Continuou a luta a partir dos Açores e do exílio, cunhando moeda própria de resistência.' },
+  'D. Pedro (Príncipe Regente)': { periodo: '1667–1683', cognome: 'Regência', contexto: 'Assumiu a regência após afastar o irmão D. Afonso VI (1667). No seu governo reconheceu-se a independência (Paz de 1668, fim da Guerra da Restauração). Viria a reinar como D. Pedro II.' },
   'D. Sancho II': { periodo: '1223–1248', cognome: 'o Capelo', contexto: 'Avançou a Reconquista no Alentejo e Algarve, mas o reinado terminou em guerra civil: foi deposto pelo irmão, o futuro Afonso III, com apoio do papado.' },
   'D. Afonso III': { periodo: '1248–1279', cognome: 'o Bolonhês', contexto: 'Concluiu a Reconquista com a tomada do Algarve (1249), fixando as fronteiras de Portugal — das mais antigas da Europa. Reuniu as primeiras Cortes com o povo (Leiria, 1254).' },
   'D. Dinis I': { periodo: '1279–1325', cognome: 'o Lavrador / o Rei-Trovador', contexto: 'Fundou a Universidade (1290), incentivou a agricultura e o comércio, mandou plantar o Pinhal de Leiria e tornou o português língua oficial. Grande poeta galego-português.' },
