@@ -102,12 +102,28 @@ function anoNum(r: DisplayRow): string {
   const n = r.issue.ano_gregoriano ?? parseInt(r.issue.ano, 10)
   return Number.isFinite(n) ? String(n) : ''
 }
+// Valor facial numérico para ordenar (5 < 10 < 20 < 50 < 100 < 1000). Usa
+// valor_facial; se null (moedas de réis antigas), extrai o número da denominação
+// ("1.000 Réis" → 1000, "5 Réis" → 5). Desconhecido → Infinity (fica no fim).
+function facialNum(r: DisplayRow): number {
+  if (r.coin.valor_facial != null) return r.coin.valor_facial
+  const d = r.coin.denominacao ?? r.coin.titulo ?? ''
+  const m = d.match(/([\d][\d.,]*)\s*(?:R[ée]is|Real|Centavos?|Escudos?|Euro)/i) || d.match(/^\s*([\d][\d.,]*)/)
+  if (!m) return Infinity
+  const n = parseFloat(m[1].replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'))
+  return Number.isFinite(n) ? n : Infinity
+}
 function ordemNatural(a: DisplayRow, b: DisplayRow): number {
   return a.coin.pais_nome.localeCompare(b.coin.pais_nome, 'pt')
     || casaEmissor(a).localeCompare(casaEmissor(b), 'pt')
     || (Number(a.coin.comemorativa) - Number(b.coin.comemorativa))
+    || (facialNum(a) - facialNum(b))
     || ((a.issue.ano_gregoriano ?? 0) - (b.issue.ano_gregoriano ?? 0))
-    || ((a.coin.valor_facial ?? 0) - (b.coin.valor_facial ?? 0))
+}
+// Chave de ordenação: as colunas de denominação ordenam por VALOR, não texto.
+function sortKey(r: DisplayRow, col: Col): string | number {
+  if (col === 'moeda' || col === 'denom') return facialNum(r)
+  return valOf(r, col)
 }
 function valOf(r: DisplayRow, col: Col): string | number {
   switch (col) {
@@ -270,8 +286,8 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
     if (sorts.length === 0) return [...filtradas].sort(ordemNatural)
     return [...filtradas].sort((a, b) => {
       for (const s of sorts) {
-        const va = valOf(a, s.col), vb = valOf(b, s.col)
-        let cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'pt')
+        const va = sortKey(a, s.col), vb = sortKey(b, s.col)
+        const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'pt')
         if (cmp !== 0) return cmp * s.dir
       }
       return ordemNatural(a, b)
