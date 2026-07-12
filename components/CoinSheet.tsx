@@ -222,6 +222,26 @@ export default function CoinSheet({ row, onClose, onSave }: CoinSheetProps) {
           </div>
         )}
 
+        {/* Resumo do que tens: quantidade + estojo por formato possuído. */}
+        {visiveis.some((v) => form[v].ativo) && (
+          <div className="mb-4 rounded-xl border border-mp-border bg-mp-surface-muted px-3 py-2">
+            <span className={lbl}>O que tens</span>
+            <div className="space-y-1">
+              {visiveis.filter((v) => form[v].ativo).map((v) => {
+                const nomes = form[v].estojos
+                  .map((a) => estojoLista.find((e) => e.id === a.estojoId)?.nome)
+                  .filter(Boolean) as string[]
+                return (
+                  <div key={v} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-mp-ink">{FORMATO_LABEL[v]} · <b>{Math.max(1, form[v].qtd)}</b> un.</span>
+                    <span className="truncate text-xs text-mp-ink-soft">{nomes.length ? `📦 ${nomes.join(', ')}` : 'sem estojo'}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Formatos/acabamento — conjunto anual (carteiras/BNC/Proof) ou avulsa (Normal/BNC/Proof). */}
         <div className="mb-4">
           <span className={lbl}>
