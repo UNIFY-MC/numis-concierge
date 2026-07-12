@@ -46,6 +46,16 @@ export async function getCoinTags(): Promise<Map<string, Set<string>>> {
   return m
 }
 
+// Contagem de moedas por coleção (tag), agregada no servidor (RPC) — evita
+// puxar toda a coin_tags só para contar.
+export async function getTagContagens(): Promise<Map<string, number>> {
+  const { data, error } = await supabase.rpc('tag_contagens')
+  if (error) throw error
+  const m = new Map<string, number>()
+  for (const r of (data ?? []) as { tag_id: string; total: number }[]) m.set(r.tag_id, Number(r.total))
+  return m
+}
+
 export async function getTagsDeCoin(catalogCoinId: string): Promise<string[]> {
   const { data, error } = await supabase.from('coin_tags').select('tag_id').eq('catalog_coin_id', catalogCoinId)
   if (error) throw error

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { getPaisesResumo } from '@/lib/catalog'
-import { getTags, criarTag, apagarTag, getCoinTags, type Tag } from '@/lib/tags'
+import { getTags, criarTag, apagarTag, getTagContagens, type Tag } from '@/lib/tags'
 import ColecaoPortugal from './ColecaoPortugal'
 import LoteModal from './LoteModal'
 import Flag from './Flag'
@@ -24,20 +24,12 @@ export default function ColecoesHub() {
   const [nova, setNova] = useState('')
 
   async function refreshContagens() {
-    const ctg = await getCoinTags()
-    const c = new Map<string, number>()
-    for (const set of ctg.values()) for (const id of set) c.set(id, (c.get(id) ?? 0) + 1)
-    setContTag(c)
+    setContTag(await getTagContagens())
   }
 
   useEffect(() => {
-    Promise.all([getPaisesResumo(), getTags(), getCoinTags()])
-      .then(([ps, tg, ctg]) => {
-        setPaises(ps); setTags(tg)
-        const c = new Map<string, number>()
-        for (const set of ctg.values()) for (const id of set) c.set(id, (c.get(id) ?? 0) + 1)
-        setContTag(c)
-      })
+    Promise.all([getPaisesResumo(), getTags(), getTagContagens()])
+      .then(([ps, tg, ctg]) => { setPaises(ps); setTags(tg); setContTag(ctg) })
       .finally(() => setLoading(false))
   }, [])
 

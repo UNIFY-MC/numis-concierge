@@ -51,30 +51,12 @@ export async function getCatalogPais(paisCodigo: string): Promise<CatalogCoin[]>
   return all
 }
 
-// Resumo de países no catálogo (código, nome, nº de tipos) — para o seletor de
-// coleções por país. Traz só 2 colunas e agrega em memória (uma vez).
+// Resumo de países no catálogo (código, nome, nº de tipos) — agregado no servidor
+// (RPC), uma query em vez de percorrer o catálogo todo.
 export async function getPaisesResumo(): Promise<{ codigo: string; nome: string; total: number }[]> {
-  const PAGE = 1000
-  let from = 0
-  const cont = new Map<string, { nome: string; total: number }>()
-  for (;;) {
-    const { data, error } = await supabase
-      .from('catalog_coins')
-      .select('pais_codigo, pais_nome')
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    for (const r of data as { pais_codigo: string; pais_nome: string }[]) {
-      if (!r.pais_codigo) continue
-      const e = cont.get(r.pais_codigo) ?? { nome: r.pais_nome, total: 0 }
-      e.total++; cont.set(r.pais_codigo, e)
-    }
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-  return [...cont.entries()]
-    .map(([codigo, v]) => ({ codigo, nome: v.nome, total: v.total }))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
+  const { data, error } = await supabase.rpc('paises_resumo')
+  if (error) throw error
+  return (data ?? []).map((r: { codigo: string; nome: string; total: number }) => ({ codigo: r.codigo, nome: r.nome, total: Number(r.total) }))
 }
 
 // Moedas + emissões de uma coleção nomeada (tag). Multi-país: junta as moedas
