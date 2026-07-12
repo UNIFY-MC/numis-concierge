@@ -46,3 +46,11 @@ Atualizar via `/update-progress`.
 - `/design-md` — regenerar `design/DESIGN.md` a partir do `globals.css` real.
 - `npx tsc --noEmit` antes de cada commit; tem de compilar limpo.
 - Enriquecimento: `scripts/enrich-numista.mjs --probe` (confirma shape) → `--limit N` (lotes).
+
+## 2026-07-12 (sessão Gomes/estojos)
+- **`serie_ord` (PT) tem de estar EM LOCKSTEP entre a BD e `lib/series.ts` (ERAS).** A app deriva a era por `eraDe(serie_ord)`; se renumerares na BD sem atualizar as ranges das ERAS (ou vice-versa), as moedas caem na era errada. Atual: Monarquia 1-40, República/Escudo 41-46, Euro 50-56, Ilhas 70-71. Porquê: o spine foi renumerado ao cronológico do Gomes (40 reinados) e já não cabia em 1-33.
+- **A coleção é do António Pinto Carvalho (`c2982159`), não do Mário (`bbf3000a`, admin).** As moedas são do pai; o Mário só tem o painel de admin. Editar/ver colecção é na conta do António.
+- **"Faltam moedas" era quase sempre ANOS em falta, não tipos.** A `catalog_issues` guardava só o `ano_inicio` de cada tipo datado pré-1910. Os tipos-base estão completos (auditoria Gomes confirmou 0 em falta nos reinados verificados). Corrige-se com INSERT de anos por `km_ref` (só `pais='pt'`, idempotente).
+- **Imports Numista/Maktun metem inglês/russo no PARÊNTESE final da `denominacao`, não no `tema`** (que já vinha PT). Há também homóglifos cirílicos (С ≈ C) em texto inglês. Traduzir só o parêntese; normalizar homóglifos com `translate()`.
+- **Gomes: a OCR em texto é ruidosa e os `code` do `material-gomes-v3.json` perderam o prefixo de reinado.** O fiável é ler o PDF por VISÃO (agente) e casar pelo `catalog_coins.gomes_ref` (código completo "A1 08"). Enriquecer só campos vazios, com página de evidência; ambíguo → revisão.
+- **Variedades datadas** (Proof-like, sobredatas) → `catalog_issues` com `etiqueta`. **Medievais sem data** ficam bloqueadas por `catalog_issues.ano` ser NOT NULL (modelo por decidir).
