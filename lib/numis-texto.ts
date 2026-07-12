@@ -95,10 +95,16 @@ export function traduzNumis(s: string): string {
   return out.replace(/\s{2,}/g, ' ').replace(/\(\s+/g, '(').replace(/\s+\)/g, ')').trim()
 }
 
+// Grupo de parênteses no fim da string, tolerante a UM nível de aninhamento
+// ("(Maria II in Exile (1828-1833))", "(Governo Civil do Porto(G.C.P))"). O
+// `[^()]*` simples parava no 1.º ')' e deixava o inglês vazar para a coluna Moeda.
+const PAREN_FIM = /\s*\((?:[^()]|\([^()]*\))*\)\s*$/
+const PAREN_FIM_CAP = /\(((?:[^()]|\([^()]*\))*)\)\s*$/
+
 // Denominação sem o tema entre parênteses ("2½ Ecu (…)" → "2½ Ecu").
 export function denomLimpa(c: CatalogCoin): string {
   const base = (c.denominacao || c.titulo || '').split(';').map((s) => s.trim()).pop() || ''
-  let v = base.replace(/\s*\([^)]*\)\s*$/, '').trim() || base
+  let v = base.replace(PAREN_FIM, '').trim() || base
   // A Maktun por vezes mete "Portugal 5 euro 2023" na denominação: tirar o nome do
   // país à frente do valor e o ano no fim, deixando só o valor ("5 euro").
   v = v.replace(/\s+\d{4}$/, '').replace(/^[A-Za-zÀ-ÿ.]+\s+(?=\d)/, '').trim() || v
@@ -109,6 +115,6 @@ export function denomLimpa(c: CatalogCoin): string {
 // na denominação (coleção/ECU), traduzido.
 export function temaLimpo(c: CatalogCoin): string {
   if (c.tema) return traduzNumis(c.tema)
-  const m = (c.denominacao || '').match(/\(([^)]+)\)\s*$/)
+  const m = (c.denominacao || '').match(PAREN_FIM_CAP)
   return m ? traduzNumis(m[1]) : ''
 }
