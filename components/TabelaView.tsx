@@ -60,9 +60,10 @@ const COLUNAS: ColMeta[] = [
 ]
 const LABEL = Object.fromEntries(COLUNAS.map((c) => [c.key, c.label])) as Record<Col, string>
 // Colunas expostas na barra de filtros visível (só aparecem se tiverem ≥2 valores).
+// Barra de filtros visível — mesma lógica do estojo: Reinado/Série, Moeda, Ano,
+// Variante, Metal. (Os filtros por coluna no cabeçalho mantêm-se.)
 const FILTROS_BARRA: [Col, string][] = [
-  ['moeda', 'Moeda'], ['metal', 'Material'], ['composicao', 'Composição'],
-  ['ano', 'Ano'], ['variante', 'Variante'], ['serie', 'Reinado/Série'],
+  ['serie', 'Reinado/Série'], ['moeda', 'Moeda'], ['ano', 'Ano'], ['variante', 'Variante'], ['metal', 'Metal'],
 ]
 const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'variante', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'estojo', 'grau', 'caderneta', 'bebe', 'set', 'proof', 'normal', 'qtd', 'facial', 'mercado']
 // Chaves de coluna mantidas (preservam prefs); o rótulo/valor é o acabamento INCM.
@@ -492,24 +493,23 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
         </div>
       </div>
 
-      {/* Barra de filtros visível: selects por moeda/material/ano/variante/reinado */}
-      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-3 py-2">
-        <span className="text-xs font-semibold text-mp-ink-soft">Filtrar:</span>
+      {/* Barra de filtros visível — uma linha, larguras iguais (Reinado/Série, Moeda, Ano, Variante, Metal) */}
+      <div className="mb-3 flex flex-nowrap items-center gap-2 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-3 py-2">
+        <span className="shrink-0 text-xs font-semibold text-mp-ink-soft">Filtrar:</span>
         {(FILTROS_BARRA).map(([key, label]) => {
           const f = filtroDaCol(key)
-          if (!f) return null
           return (
-            <select key={key} value={f.valor} onChange={(e) => f.set(e.target.value)}
-              className={'h-8 rounded-lg border px-2 text-sm outline-none focus:border-mp-gold ' +
-                (f.valor ? 'border-mp-gold bg-mp-falta-bg font-medium text-mp-gold-strong' : 'border-mp-border bg-mp-surface text-mp-ink')}>
+            <select key={key} value={f?.valor ?? ''} disabled={!f} onChange={(e) => f?.set(e.target.value)}
+              className={'h-8 min-w-0 flex-1 truncate rounded-lg border px-2 text-sm outline-none focus:border-mp-gold disabled:opacity-40 ' +
+                (f?.valor ? 'border-mp-gold bg-mp-falta-bg font-medium text-mp-gold-strong' : 'border-mp-border bg-mp-surface text-mp-ink')}>
               <option value="">{`${label}: todas`}</option>
-              {f.opcoes.filter((o) => o.v).map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+              {(f?.opcoes ?? []).filter((o) => o.v).map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
             </select>
           )
         })}
-        {temFiltro
-          ? <button onClick={() => setFiltros({})} className="ml-1 text-xs font-medium text-mp-gold-strong underline hover:text-mp-ink">limpar filtros</button>
-          : <span className="text-xs text-mp-ink-faint">escolhe um valor para filtrar a tabela</span>}
+        {temFiltro && (
+          <button onClick={() => setFiltros({})} className="shrink-0 text-xs font-medium text-mp-gold-strong underline hover:text-mp-ink whitespace-nowrap">limpar</button>
+        )}
       </div>
 
       {totalPaginas > 1 && (

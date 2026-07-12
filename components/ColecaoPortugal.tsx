@@ -322,7 +322,7 @@ export default function ColecaoPortugal() {
           return (
             <button
               key={e.chave}
-              onClick={() => { setEraSel(e.chave); setSerieSel(null) }}
+              onClick={() => { setEraSel(e.chave); setSerieSel(null); if (verTodos) setVerTodos('era') }}
               className={
                 'flex flex-col items-start rounded-xl border px-3.5 py-2 transition-colors ' +
                 (ativo
