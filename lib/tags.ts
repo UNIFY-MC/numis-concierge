@@ -61,3 +61,37 @@ export async function removerTagDeCoin(catalogCoinId: string, tagId: string): Pr
   const { error } = await supabase.from('coin_tags').delete().eq('catalog_coin_id', catalogCoinId).eq('tag_id', tagId)
   if (error) throw error
 }
+
+// Atribuição em LOTE: junta/remove um conjunto de moedas a uma coleção de uma vez
+// (por categoria/filtro). Idempotente sem depender de constraint: filtra contra
+// as que já lá estão e insere só as novas. Devolve quantas foram efetivamente
+// adicionadas.
+export async function adicionarTagEmLote(tagId: string, coinIds: string[]): Promise<number> {
+  const existentes = new Set<string>()
+  {
+    const PAGE = 1000; let from = 0
+    for (;;) {
+      const { data, error } = await supabase.from('coin_tags').select('catalog_coin_id').eq('tag_id', tagId).range(from, from + PAGE - 1)
+      if (error) throw error
+      if (!data || data.length === 0) break
+      for (const r of data) existentes.add(r.catalog_coin_id as string)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+  }
+  const novos = [...new Set(coinIds)].filter((id) => !existentes.has(id))
+  for (let i = 0; i < novos.length; i += 500) {
+    const rows = novos.slice(i, i + 500).map((id) => ({ catalog_coin_id: id, tag_id: tagId }))
+    const { error } = await supabase.from('coin_tags').insert(rows)
+    if (error) throw error
+  }
+  return novos.length
+}
+
+export async function removerTagEmLote(tagId: string, coinIds: string[]): Promise<number> {
+  for (let i = 0; i < coinIds.length; i += 500) {
+    const { error } = await supabase.from('coin_tags').delete().eq('tag_id', tagId).in('catalog_coin_id', coinIds.slice(i, i + 500))
+    if (error) throw error
+  }
+  return coinIds.length
+}

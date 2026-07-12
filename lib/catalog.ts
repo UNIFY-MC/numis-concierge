@@ -109,6 +109,29 @@ export async function getColecaoCoinsIssues(tagId: string): Promise<{ coins: Cat
   return { coins, issues }
 }
 
+// IDs das moedas que casam com um filtro de categoria — para atribuição em lote
+// a uma coleção (ex. todos os 2€ de Portugal, todas as comemorativas euro).
+export interface FiltroLote { pais?: string; familia?: string; valorFacial?: number; comemorativa?: boolean }
+export async function getCoinIdsByFiltro(f: FiltroLote): Promise<string[]> {
+  const PAGE = 1000
+  let from = 0
+  const ids: string[] = []
+  for (;;) {
+    let q = supabase.from('catalog_coins').select('id')
+    if (f.pais) q = q.eq('pais_codigo', f.pais)
+    if (f.familia) q = q.eq('familia', f.familia)
+    if (f.valorFacial != null) q = q.eq('valor_facial', f.valorFacial)
+    if (f.comemorativa != null) q = q.eq('comemorativa', f.comemorativa)
+    const { data, error } = await q.range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    ids.push(...data.map((r) => r.id as string))
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return ids
+}
+
 export async function getCatalogByCountry(paisCodigo: string): Promise<CatalogCoin[]> {
   const { data, error } = await supabase
     .from('catalog_coins')

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { getPaisesResumo } from '@/lib/catalog'
 import { getTags, criarTag, apagarTag, getCoinTags, type Tag } from '@/lib/tags'
 import ColecaoPortugal from './ColecaoPortugal'
+import LoteModal from './LoteModal'
 import Flag from './Flag'
 
 type Eixo = 'pais' | 'colecao'
@@ -19,7 +20,15 @@ export default function ColecoesHub() {
   const [loading, setLoading] = useState(true)
   const [paisSel, setPaisSel] = useState<{ codigo: string; nome: string } | null>(null)
   const [tagSel, setTagSel] = useState<Tag | null>(null)
+  const [loteTag, setLoteTag] = useState<Tag | null>(null)
   const [nova, setNova] = useState('')
+
+  async function refreshContagens() {
+    const ctg = await getCoinTags()
+    const c = new Map<string, number>()
+    for (const set of ctg.values()) for (const id of set) c.set(id, (c.get(id) ?? 0) + 1)
+    setContTag(c)
+  }
 
   useEffect(() => {
     Promise.all([getPaisesResumo(), getTags(), getCoinTags()])
@@ -123,6 +132,10 @@ export default function ColecoesHub() {
                     <p className="mt-2 font-serif text-2xl font-semibold text-mp-gold-strong">{contTag.get(t.id) ?? 0}</p>
                     <p className="text-[11px] text-mp-ink-faint">moedas na coleção</p>
                   </button>
+                  <button onClick={() => setLoteTag(t)}
+                    className="mt-3 rounded-lg border border-dashed border-mp-border px-2 py-1 text-xs font-medium text-mp-ink-soft hover:border-mp-gold hover:text-mp-gold-strong">
+                    ＋ juntar em lote
+                  </button>
                   <button onClick={() => apagar(t)} title="Apagar coleção"
                     className="absolute right-2 top-2 rounded-lg px-1.5 py-0.5 text-mp-ink-faint opacity-0 transition-opacity hover:text-mp-falta group-hover:opacity-100">×</button>
                 </div>
@@ -130,6 +143,12 @@ export default function ColecoesHub() {
             </div>
           )}
         </div>
+      )}
+
+      {loteTag && (
+        <LoteModal tag={loteTag} paises={paises}
+          onClose={() => setLoteTag(null)}
+          onDone={refreshContagens} />
       )}
     </div>
   )
