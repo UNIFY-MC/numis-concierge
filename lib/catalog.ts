@@ -51,6 +51,64 @@ export async function getCatalogPais(paisCodigo: string): Promise<CatalogCoin[]>
   return all
 }
 
+// Resumo de países no catálogo (código, nome, nº de tipos) — para o seletor de
+// coleções por país. Traz só 2 colunas e agrega em memória (uma vez).
+export async function getPaisesResumo(): Promise<{ codigo: string; nome: string; total: number }[]> {
+  const PAGE = 1000
+  let from = 0
+  const cont = new Map<string, { nome: string; total: number }>()
+  for (;;) {
+    const { data, error } = await supabase
+      .from('catalog_coins')
+      .select('pais_codigo, pais_nome')
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    for (const r of data as { pais_codigo: string; pais_nome: string }[]) {
+      if (!r.pais_codigo) continue
+      const e = cont.get(r.pais_codigo) ?? { nome: r.pais_nome, total: 0 }
+      e.total++; cont.set(r.pais_codigo, e)
+    }
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return [...cont.entries()]
+    .map(([codigo, v]) => ({ codigo, nome: v.nome, total: v.total }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
+}
+
+// Moedas + emissões de uma coleção nomeada (tag). Multi-país: junta as moedas
+// com essa tag de qualquer país. Usado no browser de coleções.
+export async function getColecaoCoinsIssues(tagId: string): Promise<{ coins: CatalogCoin[]; issues: CatalogIssue[] }> {
+  const ids: string[] = []
+  {
+    const PAGE = 1000; let from = 0
+    for (;;) {
+      const { data, error } = await supabase.from('coin_tags').select('catalog_coin_id').eq('tag_id', tagId).range(from, from + PAGE - 1)
+      if (error) throw error
+      if (!data || data.length === 0) break
+      ids.push(...data.map((r) => r.catalog_coin_id as string))
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+  }
+  if (ids.length === 0) return { coins: [], issues: [] }
+  const coins: CatalogCoin[] = []
+  const issues: CatalogIssue[] = []
+  for (let i = 0; i < ids.length; i += 200) {
+    const lote = ids.slice(i, i + 200)
+    const [{ data: cs, error: e1 }, { data: is, error: e2 }] = await Promise.all([
+      supabase.from('catalog_coins').select(COLS_COIN).in('id', lote),
+      supabase.from('catalog_issues').select('*').in('catalog_coin_id', lote),
+    ])
+    if (e1) throw e1
+    if (e2) throw e2
+    coins.push(...((cs ?? []) as unknown as CatalogCoin[]))
+    issues.push(...((is ?? []) as unknown as CatalogIssue[]))
+  }
+  return { coins, issues }
+}
+
 export async function getCatalogByCountry(paisCodigo: string): Promise<CatalogCoin[]> {
   const { data, error } = await supabase
     .from('catalog_coins')

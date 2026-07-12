@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import {
-  getCatalogPais, getCollection, getIssuesPais,
+  getCatalogPais, getCollection, getIssuesPais, getColecaoCoinsIssues,
   upsertCollectionItem, applyToAllYears,
 } from '@/lib/catalog'
 import { setAlocacoes, getTodasAlocacoes } from '@/lib/estojos'
@@ -30,9 +30,11 @@ import retratos from '@/lib/data/reis-retratos.json'
 const RETRATOS = retratos as Record<string, string>
 type Vista = 'lista' | 'tabela'
 
-// Coleção de Portugal organizada como a Colnect: Era → Série/Reinado → moedas.
-// Vista de catálogo (por tipo de moeda), com indicação do que se tem.
-export default function ColecaoPortugal() {
+// Coleção organizada como a Colnect: Era → Série/Reinado → moedas. Vista de
+// catálogo (por tipo de moeda), com indicação do que se tem. Fonte configurável:
+// por país (default Portugal) ou por coleção nomeada (tagId, multi-país).
+interface ColecaoProps { pais?: string; tagId?: string; nome?: string }
+export default function ColecaoPortugal({ pais = 'pt', tagId, nome }: ColecaoProps = {}) {
   const [coins, setCoins] = useState<CatalogCoin[]>([])
   const [issues, setIssues] = useState<CatalogIssue[]>([])
   const [col, setCol] = useState<CollectionItem[]>([])
@@ -54,10 +56,14 @@ export default function ColecaoPortugal() {
   }, [col])
 
   useEffect(() => {
-    Promise.all([getCatalogPais('pt'), getIssuesPais('pt'), getCollection(), getTags(), getCoinTags(), getTodasAlocacoes()])
-      .then(([cs, is, c, tg, ctg, al]) => { setCoins(cs); setIssues(is); setCol(c); setTags(tg); setCoinTags(ctg); setAloc(al) })
+    setLoading(true)
+    const fonte = tagId
+      ? getColecaoCoinsIssues(tagId).then((r) => [r.coins, r.issues] as const)
+      : Promise.all([getCatalogPais(pais), getIssuesPais(pais)] as const)
+    Promise.all([fonte, getCollection(), getTags(), getCoinTags(), getTodasAlocacoes()])
+      .then(([[cs, is], c, tg, ctg, al]) => { setCoins(cs); setIssues(is); setCol(c); setTags(tg); setCoinTags(ctg); setAloc(al) })
       .finally(() => setLoading(false))
-  }, [])
+  }, [pais, tagId])
 
   // Issue principal (1ª) de cada coin, e exemplares por issue.
   const issueDeCoin = useMemo(() => {
@@ -260,7 +266,7 @@ export default function ColecaoPortugal() {
 
   const tabelaAberta = serieSel != null || verTodos != null
   const erasLabel = ERAS.filter((e) => erasSel.has(e.chave)).map((e) => e.label).join(' + ') || 'Nenhuma era'
-  const tituloTabela = verTodos === 'tudo' ? 'Toda a coleção de Portugal'
+  const tituloTabela = verTodos === 'tudo' ? `Toda a coleção${nome ? ' · ' + nome : ' de Portugal'}`
     : verTodos === 'era' ? `Eras · ${erasLabel}`
     : serieSel ?? ''
   function voltar() { setSerieSel(null); setVerTodos(null) }
@@ -294,7 +300,8 @@ export default function ColecaoPortugal() {
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-semibold">
-            Coleção de <span className="text-mp-gold">Portugal</span>
+            {nome ? <>Coleção <span className="text-mp-gold">{nome}</span></>
+              : <>Coleção de <span className="text-mp-gold">Portugal</span></>}
           </h1>
           <p className="mt-1 text-xs text-mp-ink-soft">
             Organizada por era e reinado — {coins.length} tipos no catálogo, {tenho.size} na coleção

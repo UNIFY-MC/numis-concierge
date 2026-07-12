@@ -1,5 +1,5 @@
-import ColecaoPortugal from '@/components/ColecaoPortugal'
+import ColecoesHub from '@/components/ColecoesHub'
 
 export default function ColecoesPage() {
-  return <ColecaoPortugal />
+  return <ColecoesHub />
 }
