@@ -28,8 +28,11 @@ function grupoDe(coin: CatalogCoin): Grupo {
 }
 const anoNum = (i: CatalogIssue) => i.ano_gregoriano ?? parseInt(i.ano, 10) ?? 0
 
-// Cada candidato = uma (moeda × ano × variante) concreta que se pode adicionar.
-interface Candidato { coinId: string; issueId: string; ano: string; anoG: number; familia: string | null; vlabel: string }
+// Candidato = (moeda × ano × variante) concreta que se pode adicionar.
+interface Candidato {
+  coinId: string; issueId: string; ano: string; anoG: number
+  denom: string; facial: number; familia: string | null; metal: string | null; vlabel: string
+}
 
 export default function EstojoQuickAdd({
   estojoId,
@@ -41,7 +44,7 @@ export default function EstojoQuickAdd({
   onAdded: () => void
 }) {
   const [paises, setPaises] = useState<PaisCatalogo[]>([])
-  const [paisSel, setPaisSel] = useState('')
+  const [paisSel, setPaisSel] = useState('pt') // Portugal por defeito
   const [coins, setCoins] = useState<CatalogCoin[]>([])
   const [issues, setIssues] = useState<CatalogIssue[]>([])
   const [loadingPais, setLoadingPais] = useState(false)
@@ -50,7 +53,7 @@ export default function EstojoQuickAdd({
   const [periodoSel, setPeriodoSel] = useState('')
   const [moedaSel, setMoedaSel] = useState('')
   const [anoSel, setAnoSel] = useState('')
-  const [varSel, setVarSel] = useState('') // issueId da variante escolhida
+  const [varSel, setVarSel] = useState('') // issueId da variante
   const [formato, setFormato] = useState<FormatoColecao | ''>('')
   const [qtd, setQtd] = useState(1)
   const [saving, setSaving] = useState(false)
@@ -86,43 +89,43 @@ export default function EstojoQuickAdd({
     [coinsGrupo, periodoSel],
   )
 
-  const moedas = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const c of coinsPeriodo) {
-      const d = c.denominacao ?? c.titulo
-      if (d) m.set(d, Math.min(m.get(d) ?? Infinity, c.valor_facial ?? Infinity))
-    }
-    return [...m.entries()].sort((a, b) => a[1] - b[1]).map(([d]) => d)
-  }, [coinsPeriodo])
-
-  // Candidatos da moeda escolhida: todas as (moeda × ano × variante).
+  // Todos os candidatos (moeda×ano×variante) do grupo/período — base para o filtro cruzado.
   const candidatos = useMemo<Candidato[]>(() => {
-    const coinsMoeda = coinsPeriodo.filter((c) => (c.denominacao ?? c.titulo) === moedaSel)
     const out: Candidato[] = []
-    for (const c of coinsMoeda) {
+    for (const c of coinsPeriodo) {
       for (const i of issues.filter((x) => x.catalog_coin_id === c.id)) {
         out.push({
-          coinId: c.id, issueId: i.id, ano: i.ano, anoG: anoNum(i), familia: c.familia,
-          vlabel: varianteSimples(c.titulo, i.mintmark_variante ?? null, i.etiqueta ?? null) || 'Normal',
+          coinId: c.id, issueId: i.id, ano: i.ano, anoG: anoNum(i),
+          denom: c.denominacao ?? c.titulo, facial: c.valor_facial ?? Infinity,
+          familia: c.familia, metal: c.metal ?? null,
+          vlabel: varianteSimples(c.titulo, i.mintmark_variante ?? null, i.etiqueta ?? null) || 'Base',
         })
       }
     }
-    return out.sort((a, b) => a.anoG - b.anoG)
-  }, [coinsPeriodo, moedaSel, issues])
+    return out
+  }, [coinsPeriodo, issues])
+
+  // Moeda e Ano são intermutáveis: cada um mostra as opções compatíveis com o outro.
+  const moedas = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of candidatos) if (!anoSel || c.ano === anoSel) m.set(c.denom, Math.min(m.get(c.denom) ?? Infinity, c.facial))
+    return [...m.entries()].sort((a, b) => a[1] - b[1]).map(([d]) => d)
+  }, [candidatos, anoSel])
 
   const anos = useMemo(() => {
     const m = new Map<string, number>()
-    for (const c of candidatos) m.set(c.ano, Math.min(m.get(c.ano) ?? Infinity, c.anoG))
+    for (const c of candidatos) if (!moedaSel || c.denom === moedaSel) m.set(c.ano, Math.min(m.get(c.ano) ?? Infinity, c.anoG))
     return [...m.entries()].sort((a, b) => a[1] - b[1]).map(([a]) => a)
-  }, [candidatos])
+  }, [candidatos, moedaSel])
 
-  const candAno = useMemo(() => candidatos.filter((c) => c.ano === anoSel), [candidatos, anoSel])
-  const resolved = useMemo(() => candAno.find((c) => c.issueId === varSel) ?? candAno[0] ?? null, [candAno, varSel])
+  const candSel = useMemo(
+    () => (moedaSel && anoSel ? candidatos.filter((c) => c.denom === moedaSel && c.ano === anoSel) : []),
+    [candidatos, moedaSel, anoSel],
+  )
+  const resolved = useMemo(() => candSel.find((c) => c.issueId === varSel) ?? candSel[0] ?? null, [candSel, varSel])
   const fmts = resolved ? formatosDe(resolved.familia) : []
 
-  // Clampar ano / variante / formato quando as opções mudam (mantém se ainda válido).
-  useEffect(() => { if (anos.length && !anos.includes(anoSel)) setAnoSel(anos[0]) }, [anos, anoSel])
-  useEffect(() => { if (candAno.length && !candAno.some((c) => c.issueId === varSel)) setVarSel(candAno[0].issueId) }, [candAno, varSel])
+  useEffect(() => { if (candSel.length && !candSel.some((c) => c.issueId === varSel)) setVarSel(candSel[0].issueId) }, [candSel, varSel])
   useEffect(() => {
     if (fmts.length && !fmts.includes(formato as FormatoColecao)) {
       setFormato(fmts.includes('normal' as FormatoColecao) ? ('normal' as FormatoColecao) : fmts[0])
@@ -135,13 +138,10 @@ export default function EstojoQuickAdd({
     setSaving(true)
     try {
       await adicionarMoedaAoEstojo({
-        estojoId,
-        catalogCoinId: resolved.coinId,
-        catalogIssueId: resolved.issueId,
-        formato: formato || null,
-        quantidade: qtd,
+        estojoId, catalogCoinId: resolved.coinId, catalogIssueId: resolved.issueId,
+        formato: formato || null, quantidade: qtd,
       })
-      onAdded() // mantém os filtros (memória) para a próxima moeda
+      onAdded()
     } finally {
       setSaving(false)
     }
@@ -178,21 +178,22 @@ export default function EstojoQuickAdd({
         )}
 
         <Campo label="Moeda">
-          <select value={moedaSel} disabled={!colSel} onChange={(e) => { setMoedaSel(e.target.value); setAnoSel(''); setVarSel('') }} className={cel + ' w-40 disabled:opacity-50'}>
+          <select value={moedaSel} disabled={!colSel} onChange={(e) => { setMoedaSel(e.target.value); setVarSel('') }} className={cel + ' w-40 disabled:opacity-50'}>
             <option value="">Moeda…</option>
             {moedas.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
         </Campo>
 
         <Campo label="Ano">
-          <select value={anoSel} disabled={!anos.length} onChange={(e) => { setAnoSel(e.target.value); setVarSel('') }} className={cel + ' w-24 disabled:opacity-50'}>
-            {anos.length === 0 ? <option value="">Ano</option> : anos.map((a) => <option key={a} value={a}>{a}</option>)}
+          <select value={anoSel} disabled={!colSel} onChange={(e) => { setAnoSel(e.target.value); setVarSel('') }} className={cel + ' w-24 disabled:opacity-50'}>
+            <option value="">Ano…</option>
+            {anos.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </Campo>
 
         <Campo label="Variante">
-          <select value={varSel} disabled={candAno.length <= 1} onChange={(e) => setVarSel(e.target.value)} className={cel + ' w-40 disabled:opacity-50'} title="Variante da moeda nesse ano">
-            {candAno.length === 0 ? <option value="">—</option> : candAno.map((c) => <option key={c.issueId} value={c.issueId}>{c.vlabel}</option>)}
+          <select value={varSel} disabled={candSel.length <= 1} onChange={(e) => setVarSel(e.target.value)} className={cel + ' w-40 disabled:opacity-50'} title="Variante da moeda nesse ano">
+            {candSel.length === 0 ? <option value="">—</option> : candSel.map((c) => <option key={c.issueId} value={c.issueId}>{c.vlabel}</option>)}
           </select>
         </Campo>
 
@@ -204,6 +205,12 @@ export default function EstojoQuickAdd({
           </Campo>
         )}
 
+        <Campo label="Metal">
+          <span className={cel + ' inline-flex w-24 items-center bg-mp-surface-muted text-mp-ink-soft'} title="Metal do catálogo (automático)">
+            {resolved?.metal ?? '—'}
+          </span>
+        </Campo>
+
         <Campo label="Qtd">
           <input type="number" min={1} value={qtd} onChange={(e) => setQtd(parseInt(e.target.value, 10) || 1)} className={cel + ' w-16 text-center'} />
         </Campo>
@@ -213,7 +220,7 @@ export default function EstojoQuickAdd({
         </button>
       </div>
       <p className="mt-1.5 px-1 text-[11px] text-mp-ink-faint">
-        Escolhe país e coleção uma vez — a linha guarda a escolha anterior; muda só o que difere (ano/variante) e Adicionar.
+        Portugal por defeito. Escolhe moeda e ano por qualquer ordem; a variante fica "Base" quando não há variedade.
       </p>
     </div>
   )
