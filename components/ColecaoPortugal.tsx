@@ -39,7 +39,8 @@ export default function ColecaoPortugal() {
   const [tags, setTags] = useState<Tag[]>([])
   const [coinTags, setCoinTags] = useState<Map<string, Set<string>>>(new Map())
   const [loading, setLoading] = useState(true)
-  const [eraSel, setEraSel] = useState('monarquia')
+  // Eras selecionadas (multi-seleção): pode ter várias ligadas ao mesmo tempo.
+  const [erasSel, setErasSel] = useState<Set<string>>(() => new Set(['monarquia']))
   const [serieSel, setSerieSel] = useState<string | null>(null)
   const [verTodos, setVerTodos] = useState<'era' | 'tudo' | null>(null)
   const [vista, setVista] = useState<Vista>('lista')
@@ -235,35 +236,44 @@ export default function ColecaoPortugal() {
   }, [coins, tenho, coinTags])
 
   const seriesDaEra = useMemo(() => {
-    if (eraSel === 'temas') {
-      return tags
+    const out: [string, { ord: number; coins: CatalogCoin[] }][] = []
+    if (erasSel.has('temas')) {
+      out.push(...tags
         .map((t) => [t.nome, { ord: 70, coins: coinsPorTag.get(t.id) ?? [] }] as [string, { ord: number; coins: CatalogCoin[] }])
-        .filter(([, v]) => v.coins.length > 0)
-        .sort((a, b) => a[0].localeCompare(b[0], 'pt'))
+        .filter(([, v]) => v.coins.length > 0))
     }
-    const era = ERAS.find((e) => e.chave === eraSel)
-    if (!era) return []
-    return [...series.entries()]
-      .filter(([, v]) => v.ord >= era.min && v.ord <= era.max)
-      .sort((a, b) => a[1].ord - b[1].ord)
-  }, [series, eraSel, tags, coinsPorTag])
+    const eras = ERAS.filter((e) => erasSel.has(e.chave) && e.chave !== 'temas')
+    if (eras.length) {
+      out.push(...[...series.entries()].filter(([, v]) => eras.some((e) => v.ord >= e.min && v.ord <= e.max)))
+    }
+    return out.sort((a, b) => a[1].ord - b[1].ord)
+  }, [series, erasSel, tags, coinsPorTag])
 
   const coinsDaSerie = useMemo(() => {
     if (verTodos === 'tudo') return coins
-    if (verTodos === 'era') return coins.filter((c) => eraDe(c.serie_ord)?.chave === eraSel)
+    if (verTodos === 'era') return coins.filter((c) => { const e = eraDe(c.serie_ord)?.chave; return !!e && erasSel.has(e) })
     if (!serieSel) return []
-    if (eraSel === 'temas') {
-      const t = tags.find((tg) => tg.nome === serieSel)
-      return t ? (coinsPorTag.get(t.id) ?? []) : []
-    }
+    const t = tags.find((tg) => tg.nome === serieSel)
+    if (t) return coinsPorTag.get(t.id) ?? []
     return series.get(serieSel)?.coins ?? []
-  }, [verTodos, serieSel, eraSel, tags, coinsPorTag, series, coins])
+  }, [verTodos, serieSel, erasSel, tags, coinsPorTag, series, coins])
 
   const tabelaAberta = serieSel != null || verTodos != null
+  const erasLabel = ERAS.filter((e) => erasSel.has(e.chave)).map((e) => e.label).join(' + ') || 'Nenhuma era'
   const tituloTabela = verTodos === 'tudo' ? 'Toda a coleção de Portugal'
-    : verTodos === 'era' ? `Toda a era · ${ERAS.find((e) => e.chave === eraSel)?.label ?? ''}`
+    : verTodos === 'era' ? `Eras · ${erasLabel}`
     : serieSel ?? ''
   function voltar() { setSerieSel(null); setVerTodos(null) }
+  // Liga/desliga uma era (multi-seleção). Fecha a tabela de série aberta.
+  function toggleEra(chave: string) {
+    setErasSel((prev) => {
+      const n = new Set(prev)
+      if (n.has(chave)) n.delete(chave); else n.add(chave)
+      return n
+    })
+    setSerieSel(null)
+    if (verTodos) setVerTodos('era')
+  }
   // A tabela mostra uma linha por ISSUE (cada ano emitido), não só a 1.ª — assim
   // vês/geres todos os anos de cada tipo (ex. 1 Cêntimo 2002…2026).
   const rowsDaSerie = useMemo(() => {
@@ -279,11 +289,8 @@ export default function ColecaoPortugal() {
 
   if (loading) return <div className="p-8 text-mp-ink-faint">A carregar a coleção…</div>
 
-  // tabela usa o ecrã todo (mais largura); grelha de cartões mantém-se centrada
-  const ecraCheio = tabelaAberta && (verTodos || vista === 'tabela')
-
   return (
-    <div className={'mx-auto py-4 ' + (ecraCheio ? 'max-w-none px-4' : 'max-w-[92rem] px-6 lg:px-10')}>
+    <div className="w-full py-4 px-4 lg:px-6">
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="font-serif text-2xl font-semibold">
@@ -295,12 +302,12 @@ export default function ColecaoPortugal() {
         </div>
         {!tabelaAberta && (
           <div className="flex shrink-0 items-center gap-2">
-            {eraSel !== 'temas' && (
+            {[...erasSel].some((c) => c !== 'temas') && (
               <button
                 onClick={() => { setVerTodos('era'); setVista('tabela') }}
                 className="rounded-xl border border-mp-border px-3.5 py-2 text-sm font-medium text-mp-ink-soft hover:bg-mp-surface-muted"
               >
-                ☰ Ver esta era em tabela
+                ☰ Ver {erasSel.size > 1 ? 'estas eras' : 'esta era'} em tabela
               </button>
             )}
             <button
@@ -316,13 +323,13 @@ export default function ColecaoPortugal() {
       {/* Eras */}
       <div className="mb-6 flex flex-wrap gap-2">
         {ERAS.filter((e) => (contEra.tot.get(e.chave) ?? 0) > 0).map((e) => {
-          const ativo = e.chave === eraSel
+          const ativo = erasSel.has(e.chave)
           const min = contEra.anoMin.get(e.chave), max = contEra.anoMax.get(e.chave)
           const anos = min != null ? (min === max ? `${min}` : `${min}–${max}`) : null
           return (
             <button
               key={e.chave}
-              onClick={() => { setEraSel(e.chave); setSerieSel(null); if (verTodos) setVerTodos('era') }}
+              onClick={() => toggleEra(e.chave)}
               className={
                 'flex flex-col items-start rounded-xl border px-3.5 py-2 transition-colors ' +
                 (ativo

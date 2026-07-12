@@ -441,7 +441,7 @@ export default function MoedasCollection() {
   if (erro) return <div className="p-8 text-mp-falta">Erro: {erro}</div>
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="w-full p-4 lg:p-6">
       <div className="print:hidden">
       <header className="flex items-center gap-3 mb-6">
         <span className="w-11 h-11 rounded-full grid place-items-center bg-mp-gold text-white text-xl flex-none">⊚</span>

@@ -36,7 +36,7 @@ export default function EstojosView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-6 py-8">
+    <div className="w-full px-4 lg:px-6 py-8">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl font-semibold text-mp-gold-strong">Estojos</h1>

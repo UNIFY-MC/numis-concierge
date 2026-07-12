@@ -26,7 +26,7 @@ export default function AdminPanel({
   ]
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-8">
+    <div className="w-full px-4 lg:px-6 py-8">
       <header className="mb-8">
         <h1 className="font-serif text-3xl font-semibold text-mp-gold-strong">Administração</h1>
         <p className="mt-1 font-sans text-sm text-mp-ink-soft">

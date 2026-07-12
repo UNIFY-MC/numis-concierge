@@ -17,7 +17,7 @@ export default function AdminColecionador({
   const totalExemplares = paises.reduce((s, p) => s + p.exemplares, 0)
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-6 py-8">
+    <div className="w-full px-4 lg:px-6 py-8">
       <Link href="/admin" className="mb-4 inline-flex items-center gap-1 font-sans text-sm text-mp-ink-soft hover:text-mp-ink">
         ← Administração
       </Link>

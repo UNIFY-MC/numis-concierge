@@ -64,7 +64,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-mp-bg text-mp-ink">
-      <div className="mx-auto max-w-[1540px] px-4 py-5 md:px-6">
+      <div className="w-full px-4 py-5 md:px-6">
         <TopBar />
 
         <div className="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
