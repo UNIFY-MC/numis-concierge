@@ -351,14 +351,14 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
         </span>
       )
       case 'moeda': {
-        const d = denomLimpa(r.coin); const t = temaLimpo(r.coin)
+        // Só a denominação (valor). A comemoração vive na coluna "Comemoração".
         return (
           <span className="flex items-center gap-2">
             <span className="flex shrink-0 gap-0.5">
               <Disco url={r.coin.anverso_img} />
               <Disco url={r.coin.reverso_img} />
             </span>
-            <span className="truncate">{d}{t && !d.includes(t) ? <span className="text-mp-ink-soft"> · {t}</span> : null}</span>
+            <span className="truncate">{denomLimpa(r.coin)}</span>
           </span>
         )
       }
