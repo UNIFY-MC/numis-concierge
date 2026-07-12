@@ -66,6 +66,10 @@ const FILTROS_BARRA: [Col, string][] = [
   ['serie', 'Reinado/Série'], ['moeda', 'Moeda'], ['ano', 'Ano'], ['variante', 'Variante'], ['metal', 'Metal'],
 ]
 const COL_DEFAULT: Col[] = ['pais', 'tipo', 'moeda', 'comemoracao', 'metal', 'variante', 'km', 'face', 'ano', 'casa', 'peso', 'diam', 'estojo', 'grau', 'caderneta', 'bebe', 'set', 'proof', 'normal', 'qtd', 'facial', 'mercado']
+// Largura-base (px) das colunas que tendem a sprawlar. A denominação é curta
+// (só o valor), por isso a coluna Moeda fixa-se; o utilizador pode arrastar para
+// redimensionar (larguras[key] sobrepõe-se sempre).
+const LARGURA_DEFAULT: Partial<Record<Col, number>> = { moeda: 150, metal: 110, serie: 150 }
 // Chaves de coluna mantidas (preservam prefs); o rótulo/valor é o acabamento INCM.
 const FORMATO_DE_COL: Partial<Record<Col, FormatoColecao>> = { caderneta: 'carteira_fdc', bebe: 'carteira_bebe', set: 'bnc', proof: 'proof', normal: 'normal' }
 const qtdFormato = (r: DisplayRow, f: FormatoColecao) => r.itens.find((i) => i.formato_posse === f)?.quantidade ?? 0
@@ -530,7 +534,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                 const meta = COLUNAS.find((c) => c.key === key)!
                 const s = sortDe(key)
                 const filtro = filtroDaCol(key)
-                const w = larguras[key]
+                const w = larguras[key] ?? LARGURA_DEFAULT[key]
                 return (
                   <th key={key} style={w ? { width: w, minWidth: w, maxWidth: w } : undefined}
                     className={'relative whitespace-nowrap px-2.5 py-1.5 font-semibold ' + (meta.right ? 'text-right' : '')}>
@@ -556,8 +560,8 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
                       )}
                     </span>
                     {/* puxador para redimensionar a coluna */}
-                    <span onMouseDown={(e) => iniciarResize(key, e)} title="Arrastar para redimensionar"
-                      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-mp-gold/50" />
+                    <span onMouseDown={(e) => iniciarResize(key, e)} title="Arrastar para redimensionar a coluna"
+                      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize bg-mp-border/40 hover:bg-mp-gold/60" />
                   </th>
                 )
               })}
@@ -572,7 +576,7 @@ export default function TabelaView({ rows, onSelect, onExportar, onImprimir, onQ
               <tr key={r.issue.id} onClick={() => onSelect(r)} className="cursor-pointer border-t border-mp-border/60 hover:bg-mp-surface-muted">
                 {colVis.map((key) => {
                   const meta = COLUNAS.find((c) => c.key === key)!
-                  const w = larguras[key]
+                  const w = larguras[key] ?? LARGURA_DEFAULT[key]
                   return (
                     <td key={key} style={w ? { width: w, maxWidth: w } : undefined}
                       className={'px-2.5 py-1 ' + (meta.right ? 'text-right ' : '') + (w || key === 'moeda' || key === 'comemoracao' ? 'overflow-hidden' : '')}>

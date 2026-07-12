@@ -108,6 +108,8 @@ export function denomLimpa(c: CatalogCoin): string {
   // A Maktun por vezes mete "Portugal 5 euro 2023" na denominação: tirar o nome do
   // país à frente do valor e o ano no fim, deixando só o valor ("5 euro").
   v = v.replace(/\s+\d{4}$/, '').replace(/^[A-Za-zÀ-ÿ.]+\s+(?=\d)/, '').trim() || v
+  // Homogeneizar a moeda "euro": "2 euro" / "2 Euros" / "2 EURO" → "2 Euro".
+  v = v.replace(/\beuros?\b/gi, 'Euro')
   return traduzNumis(v)
 }
 
