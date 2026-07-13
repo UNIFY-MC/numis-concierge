@@ -48,6 +48,7 @@ export default function ColecaoPortugal({ pais = 'pt', tagId, nome }: ColecaoPro
   const [vista, setVista] = useState<Vista>('lista')
   const [ficha, setFicha] = useState<DisplayRow | null>(null)
   const [aloc, setAloc] = useState<Record<string, EstojoTag[]>>({})
+  const [issuesLoading, setIssuesLoading] = useState(false)
 
   const tenho = useMemo(() => {
     const t = new Set<string>()
@@ -56,13 +57,24 @@ export default function ColecaoPortugal({ pais = 'pt', tagId, nome }: ColecaoPro
   }, [col])
 
   useEffect(() => {
-    setLoading(true)
-    const fonte = tagId
-      ? getColecaoCoinsIssues(tagId).then((r) => [r.coins, r.issues] as const)
-      : Promise.all([getCatalogPais(pais), getIssuesPais(pais)] as const)
-    Promise.all([fonte, getCollection(), getTags(), getCoinTags(), getTodasAlocacoes()])
-      .then(([[cs, is], c, tg, ctg, al]) => { setCoins(cs); setIssues(is); setCol(c); setTags(tg); setCoinTags(ctg); setAloc(al) })
-      .finally(() => setLoading(false))
+    let alive = true
+    setLoading(true); setCoins([]); setIssues([])
+    // Coleção nomeada (tag): poucas moedas, carrega tudo junto.
+    if (tagId) {
+      Promise.all([getColecaoCoinsIssues(tagId), getCollection(), getTags(), getCoinTags(), getTodasAlocacoes()])
+        .then(([r, c, tg, ctg, al]) => { if (!alive) return; setCoins(r.coins); setIssues(r.issues); setCol(c); setTags(tg); setCoinTags(ctg); setAloc(al) })
+        .finally(() => { if (alive) setLoading(false) })
+      return () => { alive = false }
+    }
+    // Por país: primeiro o leve (coins + coleção) para os cartões renderizarem já;
+    // as emissões (pesadas, com o jsonb de preços) chegam a seguir e preenchem
+    // valores/tabela sem bloquear a entrada no ecrã.
+    Promise.all([getCatalogPais(pais), getCollection(), getTags(), getCoinTags(), getTodasAlocacoes()])
+      .then(([cs, c, tg, ctg, al]) => { if (!alive) return; setCoins(cs); setCol(c); setTags(tg); setCoinTags(ctg); setAloc(al) })
+      .finally(() => { if (alive) setLoading(false) })
+    setIssuesLoading(true)
+    getIssuesPais(pais).then((is) => { if (alive) setIssues(is) }).catch(() => {}).finally(() => { if (alive) setIssuesLoading(false) })
+    return () => { alive = false }
   }, [pais, tagId])
 
   // Issue principal (1ª) de cada coin, e exemplares por issue.
@@ -362,7 +374,12 @@ export default function ColecaoPortugal({ pais = 'pt', tagId, nome }: ColecaoPro
       </div>
 
       {tabelaAberta ? (
-        vista === 'tabela' || verTodos ? (
+        (vista === 'tabela' || verTodos) && issuesLoading && rowsDaSerie.length === 0 ? (
+          <div>
+            <button onClick={voltar} className="mb-4 text-sm font-semibold text-mp-gold-strong hover:underline">← voltar</button>
+            <div className="grid place-items-center rounded-2xl border border-mp-border bg-mp-surface p-12 text-sm text-mp-ink-faint">A carregar emissões…</div>
+          </div>
+        ) : vista === 'tabela' || verTodos ? (
           <TabelaView
             rows={rowsDaSerie}
             onSelect={setFicha}

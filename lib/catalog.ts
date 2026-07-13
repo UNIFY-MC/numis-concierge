@@ -31,24 +31,15 @@ export async function getCatalogCoins(): Promise<CatalogCoin[]> {
 }
 
 // Catálogo de um país (leve, sem maktun_raw) — para a vista de coleção por série.
+// Paginação paralela: conta primeiro, puxa as páginas em simultâneo.
 export async function getCatalogPais(paisCodigo: string): Promise<CatalogCoin[]> {
-  const PAGE = 1000
-  let from = 0
-  const all: CatalogCoin[] = []
-  for (;;) {
-    const { data, error } = await supabase
-      .from('catalog_coins')
-      .select(COLS_COIN)
-      .eq('pais_codigo', paisCodigo)
-      .order('serie_ord', { ascending: true })
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    all.push(...(data as unknown as CatalogCoin[]))
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-  return all
+  const { count, error } = await supabase
+    .from('catalog_coins').select('id', { count: 'exact', head: true }).eq('pais_codigo', paisCodigo)
+  if (error) throw error
+  return fetchAllParallel<CatalogCoin>(count ?? 0, (from, to) =>
+    supabase.from('catalog_coins').select(COLS_COIN).eq('pais_codigo', paisCodigo)
+      .order('serie_ord', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CatalogCoin[] | null; error: unknown }>,
+  )
 }
 
 // Resumo de países no catálogo (código, nome, nº de tipos) — agregado no servidor
@@ -146,23 +137,15 @@ export async function getCatalogIssues(): Promise<CatalogIssue[]> {
 // Issues de um país (via inner join ao catalog_coins) — para a vista de coleção
 // por série poder montar a tabela editável sem carregar as issues do mundo todo.
 export async function getIssuesPais(paisCodigo: string): Promise<CatalogIssue[]> {
-  const PAGE = 1000
-  let from = 0
-  const all: CatalogIssue[] = []
-  for (;;) {
-    const { data, error } = await supabase
-      .from('catalog_issues')
-      .select('*, catalog_coins!inner(pais_codigo)')
-      .eq('catalog_coins.pais_codigo', paisCodigo)
-      .order('ano_gregoriano', { ascending: true })
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    if (!data || data.length === 0) break
-    all.push(...(data as unknown as CatalogIssue[]))
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-  return all
+  const { count, error } = await supabase
+    .from('catalog_issues').select('id, catalog_coins!inner(pais_codigo)', { count: 'exact', head: true })
+    .eq('catalog_coins.pais_codigo', paisCodigo)
+  if (error) throw error
+  return fetchAllParallel<CatalogIssue>(count ?? 0, (from, to) =>
+    supabase.from('catalog_issues').select('*, catalog_coins!inner(pais_codigo)')
+      .eq('catalog_coins.pais_codigo', paisCodigo).order('ano_gregoriano', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: CatalogIssue[] | null; error: unknown }>,
+  )
 }
 
 export async function getIssuesForCoin(catalogCoinId: string): Promise<CatalogIssue[]> {

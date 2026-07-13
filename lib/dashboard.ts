@@ -109,20 +109,29 @@ interface ColRow {
   catalog_coins: { valor_facial: number | null; titulo: string | null; pais_codigo: string | null } | null
 }
 
+// Paginação PARALELA por lotes: busca BATCH páginas ao mesmo tempo em vez de uma
+// a uma. O catálogo tem ~13-16k linhas (14+ páginas); sequencial eram 14 idas ao
+// servidor, agora são ~2. A ordem final é irrelevante (a agregação usa maps/sets).
 async function fetchAll<T>(
   build: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>,
   page = 1000,
 ): Promise<T[]> {
   const all: T[] = []
-  let from = 0
+  const BATCH = 8
+  let base = 0
   for (;;) {
-    const { data, error } = await build(from, from + page - 1)
-    if (error) throw error
-    const rows = (data as T[] | null) ?? []
-    if (rows.length === 0) break
-    all.push(...rows)
-    if (rows.length < page) break
-    from += page
+    const res = await Promise.all(
+      Array.from({ length: BATCH }, (_, k) => build(base + k * page, base + (k + 1) * page - 1)),
+    )
+    let acabou = false
+    for (const { data, error } of res) {
+      if (error) throw error
+      const rows = (data as T[] | null) ?? []
+      all.push(...rows)
+      if (rows.length < page) acabou = true
+    }
+    if (acabou) break
+    base += BATCH * page
   }
   return all
 }
