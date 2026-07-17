@@ -127,6 +127,80 @@
   --font-sans:  var(--mp-font-sans);
 }
 
+/* ── Tema FLX (skin por defeito) ─────────────────────────────────────────────
+   Derivado do snapshot flx.vendatodosantodia.com.br (tokens shadcn HSL → hex).
+   Teal profundo + lima chartreuse sobre creme neutro; Outfit; raios 8–12px;
+   sidebar escura como assinatura. Alternável via SkinToggle (numis_skin);
+   data-skin="pinto" repõe a identidade Moedas do Pinto do :root. */
+html[data-skin='flx'] {
+  /* Fundos */
+  --mp-bg:            #f8f7f2;  /* hsl(50 27% 96%) */
+  --mp-surface:       #ffffff;
+  --mp-surface-muted: #f5f5f4;
+  --mp-border:        #ebe9e0;  /* hsl(50 20% 90%) */
+
+  /* Marca — teal profundo assume o papel do dourado */
+  --mp-gold:          #102321;  /* hsl(174 38% 10%) — primário FLX */
+  --mp-gold-strong:   #1c3f3c;
+  --mp-gold-soft:     #e6f6cb;  /* lima suave */
+
+  /* Primário — ações, links, nav activa */
+  --mp-primary:        #102321;
+  --mp-primary-strong: #0b1917;
+  --mp-primary-soft:   #e7f6c9;  /* accent lima hsl(82 78% 75%) diluído */
+  --mp-primary-mid:    #39aca1;  /* hsl(174 50% 45%) */
+  --mp-primary-warm:   #85b82e;  /* lima escuro legível */
+  --mp-hero-grad:
+    radial-gradient(circle at 70% 18%, rgba(204, 241, 142, 0.5) 0%, rgba(204, 241, 142, 0.2) 30%, transparent 58%),
+    linear-gradient(105deg, #ffffff 0%, #fafcf3 24%, #f1f8e2 54%, #e6f6cb 100%);
+  --mp-title-grad: linear-gradient(90deg, #102321 0%, #2f7d74 42%, #85b82e 100%);
+
+  /* Texto — tinta teal, nunca preto puro */
+  --mp-ink:           #102321;
+  --mp-ink-soft:      #36635f;  /* hsl(174 30% 30%) */
+  --mp-ink-faint:     #7b9d9a;
+
+  /* Estados da coleção — mesmo significado, tons FLX */
+  --mp-set:           #389475;
+  --mp-set-bg:        #e6f4ef;
+  --mp-caderneta:     #3488b2;
+  --mp-caderneta-bg:  #e4f0f6;
+  --mp-falta:         #cf7059;  /* destructive FLX hsl(12 55% 58%) */
+  --mp-falta-bg:      #f5e8e5;
+  --mp-bebe:          #9c7fc0;
+  --mp-bebe-bg:       #f0eaf7;
+
+  /* Discos de moeda: o metal é real, mantém-se; só o vazio segue o creme neutro */
+  --mp-coin-empty:    #ddd9cd;
+
+  --radius: 0.5rem;
+
+  /* Tipografia — Outfit para display e UI (a referência é toda sans) */
+  --mp-font-serif: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --mp-font-sans:  var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Sidebar escura — assinatura do modelo FLX (teal profundo, realce lima).
+   Rescopa os tokens dentro do painel; o componente não muda. */
+html[data-skin='flx'] [data-sidebar] {
+  --mp-surface:        #102321;
+  --mp-surface-muted:  #1d423d;
+  --mp-border:         #1d423d;
+  --mp-ink:            #e9f2d9;  /* hsl(82 50% 90%) */
+  --mp-ink-soft:       #b9cbb4;
+  --mp-ink-faint:      #7e9689;
+  --mp-primary:        #2f7d74;
+  --mp-primary-soft:   #154641;  /* hsl(174 30% 18%) — item activo */
+  --mp-primary-strong: #ccf18e;  /* lima hsl(82 78% 75%) — texto activo */
+  --mp-falta-bg:       #154641;  /* card de ajuda funde com o painel */
+}
+
+/* Forma FLX: raios mais contidos e display sans apertado (Outfit) */
+html[data-skin='flx'] .rounded-2xl { border-radius: 0.75rem; }
+html[data-skin='flx'] .rounded-xl  { border-radius: 0.625rem; }
+html[data-skin='flx'] .rounded-lg  { border-radius: 0.5rem; }
+html[data-skin='flx'] .font-serif  { letter-spacing: -0.02em; }
+
 body {
   background: var(--mp-bg);
   color: var(--mp-ink);

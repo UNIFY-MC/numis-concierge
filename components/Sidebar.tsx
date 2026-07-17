@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import SkinToggle from '@/components/ui/SkinToggle'
 
 // Navegação principal. Só Dashboard e Moedas têm página; o resto fica visível
 // mas desativado com chip "em breve" (fiel ao mockup, sem links mortos).
@@ -30,7 +31,7 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col gap-6 border-r border-mp-border bg-mp-surface py-6 transition-[width] duration-200 md:flex ${collapsed ? 'w-[4.5rem] px-2' : 'w-60 px-4'}`}>
+    <aside data-sidebar className={`sticky top-0 hidden h-screen shrink-0 flex-col gap-6 border-r border-mp-border bg-mp-surface py-6 transition-[width] duration-200 md:flex ${collapsed ? 'w-[4.5rem] px-2' : 'w-60 px-4'}`}>
       {/* Marca + botão de colapso */}
       <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
         <Link href="/inicio" className="flex items-center gap-2.5 px-2">
@@ -128,6 +129,8 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
           </div>
         )}
       </div>
+
+      {!collapsed && <SkinToggle />}
     </aside>
   )
 }

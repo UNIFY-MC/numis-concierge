@@ -201,3 +201,42 @@ Raio:                rounded-[1.125rem] ou rounded-md (via --radius)
 
 > Cross-check (2026-06-18): todos os tokens deste documento existem em `app/globals.css`
 > e vice-versa. 26 tokens `--mp-*` + ponte shadcn. Sem deriva. Sem `--chart-*`, sem `.dark`.
+
+---
+
+## 10. Skins — tema FLX (por defeito) e Pinto
+
+A app tem dois skins sobre o mesmo conjunto de tokens `--mp-*`. O skin activo vive em
+`data-skin` no `<html>` (persistido em `localStorage.numis_skin`, toggle na Sidebar).
+`flx` é o defeito; `pinto` repõe os valores do `:root` (secções 1–9 acima).
+
+**Tema `flx`** — derivado do snapshot flx.vendatodosantodia.com.br (tokens shadcn):
+teal profundo + lima chartreuse sobre creme neutro, sidebar escura, raios contidos.
+
+| Token | Valor FLX | Nota |
+|---|---|---|
+| `--mp-bg` | `#f8f7f2` | creme neutro hsl(50 27% 96%) |
+| `--mp-surface` | `#ffffff` | cards brancos |
+| `--mp-surface-muted` | `#f5f5f4` | |
+| `--mp-border` | `#ebe9e0` | |
+| `--mp-ink` | `#102321` | tinta teal hsl(174 38% 10%) |
+| `--mp-ink-soft` / `-faint` | `#36635f` / `#7b9d9a` | |
+| `--mp-gold` / `-strong` / `-soft` | `#102321` / `#1c3f3c` / `#e6f6cb` | teal assume o papel do dourado |
+| `--mp-primary` / `-strong` / `-soft` | `#102321` / `#0b1917` / `#e7f6c9` | accent lima diluído |
+| `--mp-primary-mid` / `-warm` | `#39aca1` / `#85b82e` | gradiente de título teal→lima |
+| `--mp-set` / bg | `#389475` / `#e6f4ef` | verde harmonizado |
+| `--mp-caderneta` / bg | `#3488b2` / `#e4f0f6` | azul aço |
+| `--mp-falta` / bg | `#cf7059` / `#f5e8e5` | destructive FLX (terracota) |
+| `--mp-bebe` / bg | `#9c7fc0` / `#f0eaf7` | |
+| `--mp-coin` | *(herda)* `#d79a2e` | o metal da moeda é real, não muda |
+| `--radius` | `0.5rem` | + overrides rounded-lg/xl/2xl (8/10/12px) |
+
+**Sidebar escura (assinatura FLX)** — `html[data-skin='flx'] [data-sidebar]` rescopa os
+tokens dentro do painel: fundo `#102321`, hover `#1d423d`, item activo `#154641` com texto
+lima `#ccf18e`, tinta `#e9f2d9`. O componente `Sidebar.tsx` não muda (só tem `data-sidebar`).
+
+**Tipografia FLX**: Outfit (variável, next/font, `--font-outfit`) para display **e** UI;
+`.font-serif` ganha `letter-spacing: -0.02em`. No skin `pinto` mantém-se Fraunces + Inter.
+
+> A paleta escura do FLX (`.dark` no snapshot) não foi ligada — a app não tem modo escuro.
+> Fica documentada no snapshot em scratchpad se um dia se quiser variante escura.
