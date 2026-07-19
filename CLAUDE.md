@@ -9,6 +9,7 @@ Segue as convenções globais em ~/.claude/CLAUDE.md.
 - `Context.md` — estado atual / quem é quem.
 - `connections.md` — integrações/MCP (o que lê/escreve). Chaves só no `.env`.
 - `guardrails.md` — o que o agente NUNCA faz sozinho (gate antes de automatizar).
+- `cadencia.md` — C4: em que degrau está cada rotina (manual → supervisionado → agendado).
 - `learnings.md` — porquês duráveis. `decisions/` — decisões estruturais datadas.
 - `design/DESIGN.md` — fonte de verdade visual (espelho de `app/globals.css`).
 - `app/showcase/page.tsx` — validação da fundação (`/showcase`).

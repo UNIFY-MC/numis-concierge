@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>numis.coins — sem ligação</title>
+    <style>
+      body {
+        margin: 0; min-height: 100dvh; display: grid; place-items: center;
+        background: #f7f3ec; color: #241f36;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem;
+      }
+      .cartao { max-width: 22rem; text-align: center; }
+      img { width: 88px; height: 88px; border-radius: 22px; }
+      h1 { font-size: 1.35rem; margin: 1.25rem 0 0.5rem; font-weight: 600; }
+      p { margin: 0; color: #6f6a80; line-height: 1.55; font-size: 0.95rem; }
+      button {
+        margin-top: 1.5rem; padding: 0.7rem 1.6rem; border: 0; border-radius: 999px;
+        background: #7651e8; color: #fff; font-size: 0.9rem; font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="cartao">
+      <img src="/icon-192.png" alt="" />
+      <h1>Sem ligação</h1>
+      <p>O catálogo e a coleção precisam de internet. Verifica a ligação e tenta outra vez.</p>
+      <button onclick="location.reload()">Tentar de novo</button>
+    </div>
+  </body>
+</html>
