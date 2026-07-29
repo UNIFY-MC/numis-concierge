@@ -10,27 +10,31 @@ export default function EstojoGrelha({
   itens,
   linhas,
   colunas,
+  folhaVista,
   posicao,
   soAFolha,
   bloqueado,
   onEscolher,
+  onAbrir,
   onRemover,
 }: {
   itens: EstojoConteudoItem[]
   linhas: number
   colunas: number
-  posicao: Posicao
+  folhaVista: number
+  posicao: Posicao | null
   soAFolha: boolean
   bloqueado: boolean
   onEscolher: (p: Posicao) => void
+  onAbrir: (item: EstojoConteudoItem) => void
   onRemover: (alocacaoId: string) => void
 }) {
   const porCasa = new Map<string, EstojoConteudoItem>()
   for (const i of itens) if (i.linha && i.coluna) porCasa.set(`${i.folha ?? 1}:${i.linha}:${i.coluna}`, i)
 
   const maxFolha = itens.reduce((m, i) => Math.max(m, i.folha ?? 1), 1)
-  const todas = Array.from({ length: Math.max(maxFolha, posicao.folha) }, (_, i) => i + 1)
-  const folhas = soAFolha ? todas.filter((f) => f === posicao.folha) : todas
+  const todas = Array.from({ length: Math.max(maxFolha, folhaVista) }, (_, i) => i + 1)
+  const folhas = soAFolha ? todas.filter((f) => f === folhaVista) : todas
   const soltas = itens.filter((i) => !i.linha || !i.coluna)
   const grid = { '--cols': colunas } as CSSProperties
 
@@ -49,7 +53,7 @@ export default function EstojoGrelha({
               const linha = Math.floor(n / colunas) + 1
               const coluna = (n % colunas) + 1
               const item = porCasa.get(`${f}:${linha}:${coluna}`)
-              const activa = posicao.folha === f && posicao.linha === linha && posicao.coluna === coluna
+              const activa = posicao?.folha === f && posicao.linha === linha && posicao.coluna === coluna
               return (
                 <Casa
                   key={n}
@@ -57,7 +61,7 @@ export default function EstojoGrelha({
                   activa={activa}
                   etiqueta={`L${linha} · C${coluna}`}
                   bloqueado={bloqueado}
-                  onEscolher={() => onEscolher({ folha: f, linha, coluna })}
+                  onEscolher={() => (item ? onAbrir(item) : onEscolher({ folha: f, linha, coluna }))}
                   onRemover={onRemover}
                 />
               )
@@ -97,7 +101,12 @@ function Casa({
   const foco = activa ? ' ring-2 ring-mp-gold' : ''
 
   return (
-    <button type="button" onClick={onEscolher} className={`${base} ${estado}${foco}`} title={etiqueta}>
+    <button
+      type="button"
+      onClick={onEscolher}
+      className={`${base} ${estado}${foco}`}
+      title={item ? `${item.denominacao ?? item.titulo} — ver ficha` : etiqueta}
+    >
       <span className="absolute right-1.5 top-1.5 font-sans text-[9px] uppercase tracking-wide text-mp-ink-faint">
         {etiqueta}
       </span>

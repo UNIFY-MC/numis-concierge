@@ -53,6 +53,7 @@ export default function EstojoTabela({
   grelha,
   variantes,
   bloqueado,
+  onAbrir,
   onRecarregar,
   onRemover,
 }: {
@@ -61,6 +62,7 @@ export default function EstojoTabela({
   grelha: { linhas: number | null; colunas: number | null }
   variantes: Record<string, VarianteOpcao[]>
   bloqueado: boolean
+  onAbrir: (item: EstojoConteudoItem) => void
   onRecarregar: () => void
   onRemover: (alocacaoId: string) => void
 }) {
@@ -122,13 +124,13 @@ export default function EstojoTabela({
                 </td>
               )}
               <td className={td}>
-                <span className="flex items-center gap-2.5 text-mp-ink">
+                <button onClick={() => onAbrir(i)} className="flex items-center gap-2.5 text-mp-ink hover:text-mp-gold-strong" title="Ver ficha da moeda">
                   <Flag code={i.paisCodigo} size={18} />
                   <span>
                     {i.denominacao ?? i.titulo}
                     {i.paisNome && <span className="text-mp-ink-faint"> · {i.paisNome}</span>}
                   </span>
-                </span>
+                </button>
               </td>
               <td className={td + ' text-mp-ink-soft'}>{i.serie ?? '—'}</td>
               <td className={td + ' text-mp-ink-soft'}>{i.ano ?? '—'}</td>

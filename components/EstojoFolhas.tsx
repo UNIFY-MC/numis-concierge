@@ -6,12 +6,14 @@ export default function EstojoFolhas({
   folhas,
   activa,
   soAFolha,
+  permitirNova,
   onFolha,
   onSoAFolha,
 }: {
   folhas: number
   activa: number
   soAFolha: boolean
+  permitirNova: boolean
   onFolha: (f: number) => void
   onSoAFolha: (v: boolean) => void
 }) {
@@ -24,7 +26,9 @@ export default function EstojoFolhas({
       {Array.from({ length: folhas }, (_, i) => i + 1).map((f) => (
         <button key={f} onClick={() => onFolha(f)} className={chip(f === activa)}>{f}</button>
       ))}
-      <button onClick={() => onFolha(folhas + 1)} className={chip(false)} title="Começar uma folha nova">+</button>
+      {permitirNova && (
+        <button onClick={() => onFolha(folhas + 1)} className={chip(false)} title="Começar uma folha nova">+</button>
+      )}
       <label className="ml-auto flex items-center gap-2 px-1 font-sans text-xs text-mp-ink-soft">
         <input type="checkbox" checked={soAFolha} onChange={(e) => onSoAFolha(e.target.checked)} className="h-4 w-4 accent-mp-gold" />
         Mostrar só esta folha

@@ -414,6 +414,92 @@ export async function arrumarSemCasa(estojoId: string, linhas: number, colunas: 
   return soltas.length
 }
 
+export interface FichaMoeda {
+  titulo: string
+  paisNome: string | null
+  serie: string | null
+  tema: string | null
+  tipoEmissao: string | null
+  composicao: string | null
+  metal: string | null
+  pesoG: number | null
+  diametroMm: number | null
+  espessuraMm: number | null
+  forma: string | null
+  anversoDesc: string | null
+  reversoDesc: string | null
+  kmRef: string | null
+  gomesRef: string | null
+  numistaId: number | null
+  ano: string | null
+  casaMoeda: string | null
+  tiragem: number | null
+  raridade: string | null
+  valorMercado: number | null
+  valorMercadoGrau: string | null
+  valorMercadoFonte: string | null
+  valorMercadoData: string | null
+  precosMercado: Record<string, number> | null
+  notas: string | null
+}
+
+// Ficha de leitura da moeda: o que o catálogo sabe sobre este tipo e este ano.
+export async function getFichaMoeda(coinId: string, issueId: string | null): Promise<FichaMoeda | null> {
+  const [coin, issue] = await Promise.all([
+    supabase
+      .from('catalog_coins')
+      .select(
+        'titulo, pais_nome, serie, tema, tipo_emissao, composicao, metal, peso_g, diametro_mm, espessura_mm, ' +
+          'forma, anverso_desc, reverso_desc, km_ref, gomes_ref, numista_id',
+      )
+      .eq('id', coinId)
+      .maybeSingle(),
+    issueId
+      ? supabase
+          .from('catalog_issues')
+          .select(
+            'ano, casa_moeda, tiragem, raridade, notas, valor_mercado, valor_mercado_grau, ' +
+              'valor_mercado_fonte, valor_mercado_data, precos_mercado',
+          )
+          .eq('id', issueId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
+  const c = coin.data as Record<string, unknown> | null
+  if (!c) return null
+  const i = (issue.data ?? null) as Record<string, unknown> | null
+  const num = (v: unknown) => (v == null ? null : Number(v))
+
+  return {
+    titulo: c.titulo as string,
+    paisNome: (c.pais_nome as string) ?? null,
+    serie: (c.serie as string) ?? null,
+    tema: (c.tema as string) ?? null,
+    tipoEmissao: (c.tipo_emissao as string) ?? null,
+    composicao: (c.composicao as string) ?? null,
+    metal: (c.metal as string) ?? null,
+    pesoG: num(c.peso_g),
+    diametroMm: num(c.diametro_mm),
+    espessuraMm: num(c.espessura_mm),
+    forma: (c.forma as string) ?? null,
+    anversoDesc: (c.anverso_desc as string) ?? null,
+    reversoDesc: (c.reverso_desc as string) ?? null,
+    kmRef: (c.km_ref as string) ?? null,
+    gomesRef: (c.gomes_ref as string) ?? null,
+    numistaId: num(c.numista_id),
+    ano: (i?.ano as string) ?? null,
+    casaMoeda: (i?.casa_moeda as string) ?? null,
+    tiragem: num(i?.tiragem),
+    raridade: (i?.raridade as string) ?? null,
+    valorMercado: num(i?.valor_mercado),
+    valorMercadoGrau: (i?.valor_mercado_grau as string) ?? null,
+    valorMercadoFonte: (i?.valor_mercado_fonte as string) ?? null,
+    valorMercadoData: (i?.valor_mercado_data as string) ?? null,
+    precosMercado: (i?.precos_mercado as Record<string, number>) ?? null,
+    notas: (i?.notas as string) ?? null,
+  }
+}
+
 export interface VarianteOpcao {
   issueId: string
   ano: string

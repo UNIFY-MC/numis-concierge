@@ -10,6 +10,7 @@ import EstojoResumo from '@/components/EstojoResumo'
 import EstojoModal from '@/components/EstojoModal'
 import EstojoTrinco from '@/components/EstojoTrinco'
 import EstojoPrint from '@/components/EstojoPrint'
+import EstojoMoedaFicha from '@/components/EstojoMoedaFicha'
 import { eur } from '@/lib/valor'
 import {
   arrumarSemCasa,
@@ -35,9 +36,12 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   const [trinco, setTrinco] = useState(false)
   const [soAFolha, setSoAFolha] = useState(true)
   const [variantes, setVariantes] = useState<Record<string, VarianteOpcao[]>>({})
-  // Folha onde se está a trabalhar: a inserção nunca recua para buracos de folhas
-  // anteriores. 0 = ainda não se escolheu nenhuma (arranca na última usada).
-  const folhaRef = useRef(0)
+  // A folha que se está a ver não é a casa onde se insere: numa folha cheia a
+  // casa livre seguinte cai na folha a seguir, mas abrir o estojo tem de mostrar
+  // a última folha COM moedas, não uma folha vazia.
+  const [folhaVista, setFolhaVista] = useState(1)
+  const [ficha, setFicha] = useState<EstojoConteudoItem | null>(null)
+  const primeiraVez = useRef(true)
 
   async function carregar() {
     const [e, conteudo] = await Promise.all([getEstojo(id), getConteudoEstojo(id)])
@@ -49,10 +53,11 @@ export default function EstojoDetalhe({ id }: { id: string }) {
       setPosicao(null)
       return
     }
-    const ultima = conteudo.reduce((m, i) => Math.max(m, i.folha ?? 1), 1)
-    const pos = proximaPosicao(conteudo, e.linhas, e.colunas, folhaRef.current || ultima)
-    folhaRef.current = pos.folha
-    setPosicao(pos)
+    const comMoedas = conteudo.reduce((m, i) => Math.max(m, i.folha ?? 1), 1)
+    const folha = primeiraVez.current ? comMoedas : folhaVista
+    primeiraVez.current = false
+    setFolhaVista(folha)
+    setPosicao(e.fechado ? null : proximaPosicao(conteudo, e.linhas, e.colunas, folha))
   }
 
   useEffect(() => {
@@ -61,15 +66,16 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   }, [id])
 
   function escolherPosicao(p: Posicao) {
-    folhaRef.current = p.folha
+    setFolhaVista(p.folha)
     setPosicao(p)
   }
 
-  // Saltar para uma folha: assenta na primeira casa livre dessa folha.
+  // Saltar para uma folha: fica-se a vê-la e a inserção assenta na sua primeira
+  // casa livre (se estiver cheia, na folha seguinte — mas a vista não muda).
   function escolherFolha(f: number) {
-    if (!estojo?.linhas || !estojo?.colunas) return
-    const p = proximaPosicao(lista, estojo.linhas, estojo.colunas, f)
-    escolherPosicao(p.folha === f ? p : { folha: f, linha: 1, coluna: 1 })
+    setFolhaVista(f)
+    if (!estojo?.linhas || !estojo?.colunas || estojo.fechado) return
+    setPosicao(proximaPosicao(lista, estojo.linhas, estojo.colunas, f))
   }
 
   async function remover(alocacaoId: string) {
@@ -90,11 +96,11 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   const bloqueado = !!estojo?.fechado
   const proximaOrdem = lista.reduce((m, i) => Math.max(m, i.ordem), 0) + 1
   const semCasa = lista.filter((i) => !i.linha || !i.coluna).length
-  const folhasUsadas = Math.max(lista.reduce((m, i) => Math.max(m, i.folha ?? 1), 1), posicao?.folha ?? 1)
+  // Estojo fechado não ganha folhas novas: mostram-se só as que têm moedas.
+  const folhasComMoedas = lista.reduce((m, i) => Math.max(m, i.folha ?? 1), 1)
+  const folhasUsadas = bloqueado ? folhasComMoedas : Math.max(folhasComMoedas, folhaVista, posicao?.folha ?? 1)
   // A tabela obedece ao mesmo filtro da grelha: ver só a folha em que se trabalha.
-  const naVista = temGrelha && soAFolha && posicao
-    ? lista.filter((i) => (i.folha ?? 1) === posicao.folha)
-    : lista
+  const naVista = temGrelha && soAFolha ? lista.filter((i) => (i.folha ?? 1) === folhaVista) : lista
 
   const aba = (on: boolean) =>
     `rounded-lg px-3 py-1.5 font-sans text-xs font-semibold ${on ? 'bg-mp-gold text-white' : 'text-mp-ink-soft hover:bg-mp-surface-muted'}`
@@ -173,11 +179,12 @@ export default function EstojoDetalhe({ id }: { id: string }) {
         />
       )}
 
-      {temGrelha && posicao && vista !== 'resumo' && (
+      {temGrelha && vista !== 'resumo' && (
         <EstojoFolhas
           folhas={folhasUsadas}
-          activa={posicao.folha}
+          activa={folhaVista}
           soAFolha={soAFolha}
+          permitirNova={!bloqueado}
           onFolha={escolherFolha}
           onSoAFolha={setSoAFolha}
         />
@@ -187,15 +194,17 @@ export default function EstojoDetalhe({ id }: { id: string }) {
         <p className="font-sans text-sm text-mp-ink-soft">A carregar…</p>
       ) : vista === 'resumo' ? (
         <EstojoResumo itens={lista} />
-      ) : temGrelha && posicao && vista === 'grelha' ? (
+      ) : temGrelha && vista === 'grelha' ? (
         <EstojoGrelha
           itens={itens}
           linhas={estojo!.linhas!}
           colunas={estojo!.colunas!}
+          folhaVista={folhaVista}
           posicao={posicao}
           soAFolha={soAFolha}
           bloqueado={bloqueado}
           onEscolher={escolherPosicao}
+          onAbrir={setFicha}
           onRemover={remover}
         />
       ) : naVista.length === 0 ? (
@@ -211,11 +220,14 @@ export default function EstojoDetalhe({ id }: { id: string }) {
           grelha={{ linhas: estojo?.linhas ?? null, colunas: estojo?.colunas ?? null }}
           variantes={variantes}
           bloqueado={bloqueado}
+          onAbrir={setFicha}
           onRecarregar={carregar}
           onRemover={remover}
         />
       )}
       </div>
+
+      {ficha && <EstojoMoedaFicha item={ficha} onClose={() => setFicha(null)} />}
 
       {estojo && itens && <EstojoPrint estojo={estojo} itens={itens} />}
 
