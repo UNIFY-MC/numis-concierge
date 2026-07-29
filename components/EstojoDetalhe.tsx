@@ -6,8 +6,10 @@ import Flag from '@/components/Flag'
 import EstojoQuickAdd from '@/components/EstojoQuickAdd'
 import EstojoGrelha from '@/components/EstojoGrelha'
 import EstojoPosicao from '@/components/EstojoPosicao'
+import EstojoModal from '@/components/EstojoModal'
 import { eur } from '@/lib/valor'
 import {
+  arrumarSemCasa,
   getConteudoEstojo,
   getEstojo,
   proximaPosicao,
@@ -36,6 +38,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   const [itens, setItens] = useState<EstojoConteudoItem[] | null>(null)
   const [posicao, setPosicao] = useState<Posicao | null>(null)
   const [vista, setVista] = useState<'grelha' | 'tabela'>('grelha')
+  const [editar, setEditar] = useState(false)
 
   async function carregar() {
     const [e, conteudo] = await Promise.all([getEstojo(id), getConteudoEstojo(id)])
@@ -55,11 +58,18 @@ export default function EstojoDetalhe({ id }: { id: string }) {
     await carregar()
   }
 
+  async function arrumar() {
+    if (!estojo?.linhas || !estojo?.colunas) return
+    await arrumarSemCasa(id, estojo.linhas, estojo.colunas)
+    await carregar()
+  }
+
   const lista = itens ?? []
   const totalExemplares = lista.reduce((s, i) => s + i.quantidade, 0)
   const totalMercado = lista.reduce((s, i) => s + (i.valorMercado ?? 0) * i.quantidade, 0)
   const temGrelha = !!(estojo?.linhas && estojo?.colunas)
   const proximaOrdem = lista.reduce((m, i) => Math.max(m, i.ordem), 0) + 1
+  const semCasa = lista.filter((i) => !i.linha || !i.coluna).length
 
   const th = 'px-3 py-2.5 font-semibold whitespace-nowrap'
   const td = 'px-3 py-2 whitespace-nowrap'
@@ -82,13 +92,38 @@ export default function EstojoDetalhe({ id }: { id: string }) {
             {totalMercado > 0 && <span> · <b className="font-serif text-mp-gold-strong">{eur(totalMercado)}</b> mercado</span>}
           </p>
         </div>
-        {temGrelha && (
-          <div className="flex gap-1 rounded-xl border border-mp-border bg-mp-surface p-1">
-            <button onClick={() => setVista('grelha')} className={aba(vista === 'grelha')}>Grelha</button>
-            <button onClick={() => setVista('tabela')} className={aba(vista === 'tabela')}>Tabela</button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {temGrelha && (
+            <div className="flex gap-1 rounded-xl border border-mp-border bg-mp-surface p-1">
+              <button onClick={() => setVista('grelha')} className={aba(vista === 'grelha')}>Grelha</button>
+              <button onClick={() => setVista('tabela')} className={aba(vista === 'tabela')}>Tabela</button>
+            </div>
+          )}
+          <button
+            onClick={() => setEditar(true)}
+            disabled={!estojo}
+            className="rounded-xl border border-mp-border bg-mp-surface px-3 py-2 font-sans text-xs font-semibold text-mp-ink-soft hover:border-mp-gold hover:text-mp-gold-strong disabled:opacity-50"
+          >
+            {temGrelha ? 'Editar estojo' : 'Definir grelha'}
+          </button>
+        </div>
       </header>
+
+      {estojo && !temGrelha && (
+        <p className="mb-4 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft">
+          Este estojo não tem grelha, por isso as moedas entram por ordem de chegada e não têm folha/linha/coluna.
+          Carrega em <b className="text-mp-ink">Definir grelha</b> para dizer quantas linhas e colunas tem cada folha.
+        </p>
+      )}
+
+      {temGrelha && semCasa > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft">
+          <span>{semCasa} moedas ainda sem casa atribuída (entraram antes da grelha).</span>
+          <button onClick={arrumar} className="rounded-lg bg-mp-gold px-3 py-1.5 font-semibold text-white hover:bg-mp-gold-strong">
+            Arrumar nas casas livres
+          </button>
+        </div>
+      )}
 
       <EstojoQuickAdd
         estojoId={id}
@@ -169,6 +204,17 @@ export default function EstojoDetalhe({ id }: { id: string }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {editar && estojo && (
+        <EstojoModal
+          estojo={estojo}
+          onClose={() => setEditar(false)}
+          onGuardado={async () => {
+            setEditar(false)
+            await carregar()
+          }}
+        />
       )}
     </div>
   )

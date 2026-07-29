@@ -22,7 +22,8 @@ export default function EstojoModal({
   const [localizacao, setLocalizacao] = useState(estojo?.localizacao ?? '')
   const [linhas, setLinhas] = useState(estojo?.linhas ? String(estojo.linhas) : '')
   const [colunas, setColunas] = useState(estojo?.colunas ? String(estojo.colunas) : '')
-  const [comGrelha, setComGrelha] = useState(!!(estojo?.linhas && estojo?.colunas))
+  // Estojo novo assume grelha (o caso normal é um livro/dossier com folhas iguais).
+  const [comGrelha, setComGrelha] = useState(estojo ? !!(estojo.linhas && estojo.colunas) : true)
   const [saving, setSaving] = useState(false)
 
   async function guardar() {

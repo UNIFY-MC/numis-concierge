@@ -363,6 +363,32 @@ export async function removerAlocacao(alocacaoId: string): Promise<void> {
   if (error) throw error
 }
 
+// Arruma nas primeiras casas livres tudo o que está no estojo sem casa atribuída,
+// pela ordem em que lá entrou. Para quando se define a grelha depois das moedas.
+export async function arrumarSemCasa(estojoId: string, linhas: number, colunas: number): Promise<number> {
+  const { data, error } = await supabase
+    .from('colecao_estojo')
+    .select('id, ordem, folha, linha, coluna')
+    .eq('estojo_id', estojoId)
+  if (error) throw error
+  const todas = (data ?? []) as { id: string; ordem: number | null; folha: number | null; linha: number | null; coluna: number | null }[]
+  const ocupadas = todas.filter((r) => r.linha != null && r.coluna != null)
+  const soltas = todas
+    .filter((r) => r.linha == null || r.coluna == null)
+    .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+
+  for (const r of soltas) {
+    const pos = proximaPosicao(ocupadas, linhas, colunas)
+    const { error: e } = await supabase
+      .from('colecao_estojo')
+      .update({ folha: pos.folha, linha: pos.linha, coluna: pos.coluna })
+      .eq('id', r.id)
+    if (e) throw e
+    ocupadas.push({ id: r.id, ordem: r.ordem, ...pos })
+  }
+  return soltas.length
+}
+
 // Corrige a casa de um exemplar já arrumado.
 export async function moverAlocacao(alocacaoId: string, pos: Posicao): Promise<void> {
   const { error } = await supabase
