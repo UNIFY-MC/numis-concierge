@@ -37,6 +37,9 @@ const ESTOJO_COLS = 'id, nome, tipo, cor, descricao, localizacao, linhas, coluna
 export interface EstojoResumo extends Estojo {
   moedas: number // exemplares distintos (linhas de colecção) neste estojo
   exemplares: number // soma das quantidades
+  folhas: number // folhas em uso (1 quando ainda não há nada arrumado)
+  casas: number | null // capacidade total = linhas × colunas × folhas (null sem grelha)
+  valorMercado: number
 }
 
 export interface EstojoConteudoItem {
@@ -59,6 +62,8 @@ export interface EstojoConteudoItem {
   valorMercado: number | null
   formato: string | null
   grau: string | null
+  anverso: string | null
+  reverso: string | null
 }
 
 // Próximo número de ordem livre num estojo (max+1), para entrada em linha.
@@ -579,29 +584,48 @@ export async function getTodasAlocacoes(): Promise<Record<string, EstojoTag[]>> 
 export async function getEstojosComResumo(): Promise<EstojoResumo[]> {
   const [estojos, aloc] = await Promise.all([
     getEstojos(),
-    supabase.from('colecao_estojo').select('estojo_id, quantidade'),
+    supabase
+      .from('colecao_estojo')
+      .select('estojo_id, quantidade, folha, collection:collection_id ( catalog_issues:catalog_issue_id ( valor_mercado ) )'),
   ])
   if (aloc.error) throw aloc.error
-  const conta: Record<string, { moedas: number; exemplares: number }> = {}
-  for (const a of (aloc.data ?? []) as { estojo_id: string; quantidade: number }[]) {
-    const c = (conta[a.estojo_id] ??= { moedas: 0, exemplares: 0 })
+
+  type Linha = {
+    estojo_id: string
+    quantidade: number
+    folha: number | null
+    collection: { catalog_issues: { valor_mercado: number | null } | null } | null
+  }
+  const conta: Record<string, { moedas: number; exemplares: number; folhas: number; valor: number }> = {}
+  for (const a of (aloc.data ?? []) as unknown as Linha[]) {
+    const c = (conta[a.estojo_id] ??= { moedas: 0, exemplares: 0, folhas: 1, valor: 0 })
     c.moedas += 1
     c.exemplares += a.quantidade
+    c.folhas = Math.max(c.folhas, a.folha ?? 1)
+    c.valor += Number(a.collection?.catalog_issues?.valor_mercado ?? 0) * a.quantidade
   }
-  return estojos.map((e) => ({
-    ...e,
-    moedas: conta[e.id]?.moedas ?? 0,
-    exemplares: conta[e.id]?.exemplares ?? 0,
-  }))
+
+  return estojos.map((e) => {
+    const c = conta[e.id]
+    const folhas = c?.folhas ?? 1
+    return {
+      ...e,
+      moedas: c?.moedas ?? 0,
+      exemplares: c?.exemplares ?? 0,
+      folhas,
+      casas: e.linhas && e.colunas ? e.linhas * e.colunas * folhas : null,
+      valorMercado: c?.valor ?? 0,
+    }
+  })
 }
 
 export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteudoItem[]> {
   const { data, error } = await supabase
     .from('colecao_estojo')
     .select(
-      'id, quantidade, ordem, folha, linha, coluna, collection:collection_id ( id, formato_posse, grau, ' +
-        'catalog_coins:catalog_coin_id ( titulo, denominacao, pais_codigo, pais_nome, serie, metal, valor_facial ), ' +
-        'catalog_issues:catalog_issue_id ( ano, valor_mercado, mintmark_variante, etiqueta ) )',
+      'id, quantidade, ordem, folha, linha, coluna, collection:collection_id ( id, formato_posse, grau, foto1, ' +
+        'catalog_coins:catalog_coin_id ( titulo, denominacao, pais_codigo, pais_nome, serie, metal, valor_facial, anverso_img, reverso_img ), ' +
+        'catalog_issues:catalog_issue_id ( ano, valor_mercado, mintmark_variante, etiqueta, anverso_img, reverso_img ) )',
     )
     .eq('estojo_id', estojoId)
   if (error) throw error
@@ -617,11 +641,16 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
       id: string
       formato_posse: string | null
       grau: string | null
+      foto1: string | null
       catalog_coins: {
         titulo: string; denominacao: string | null; pais_codigo: string; pais_nome: string | null
         serie: string | null; metal: string | null; valor_facial: number | null
+        anverso_img: string | null; reverso_img: string | null
       } | null
-      catalog_issues: { ano: string | null; valor_mercado: number | null; mintmark_variante: string | null; etiqueta: string | null } | null
+      catalog_issues: {
+        ano: string | null; valor_mercado: number | null; mintmark_variante: string | null; etiqueta: string | null
+        anverso_img: string | null; reverso_img: string | null
+      } | null
     } | null
   }
 
@@ -650,6 +679,9 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
         valorMercado: i?.valor_mercado != null ? Number(i.valor_mercado) : null,
         formato: r.collection!.formato_posse,
         grau: r.collection!.grau,
+        // Foto do exemplar primeiro; depois a da variante; por fim a do tipo.
+        anverso: r.collection!.foto1 ?? i?.anverso_img ?? c?.anverso_img ?? null,
+        reverso: i?.reverso_img ?? c?.reverso_img ?? null,
       }
     })
     .sort(ordenarPorCasa)

@@ -57,7 +57,7 @@ export default function EstojoGrelha({
           </h3>
           <div
             style={grid}
-            className="grid gap-2 [grid-template-columns:repeat(var(--cols),minmax(0,1fr))]"
+            className="grid w-full max-w-[calc(var(--cols)*11rem)] gap-2 [grid-template-columns:repeat(var(--cols),minmax(0,1fr))]"
           >
             {Array.from({ length: linhas * colunas }, (_, n) => {
               const linha = Math.floor(n / colunas) + 1
@@ -101,7 +101,7 @@ function Casa({
   onEscolher: () => void
   onRemover: (alocacaoId: string) => void
 }) {
-  const base = 'group relative aspect-square rounded-xl border p-2 text-left transition-colors'
+  const base = 'group relative min-h-[7.5rem] rounded-xl border p-2 pt-5 text-left transition-colors'
   const estado = item
     ? 'border-mp-border bg-mp-surface hover:border-mp-gold'
     : 'border-dashed border-mp-border bg-mp-surface-muted/40 hover:border-mp-gold'
@@ -113,30 +113,46 @@ function Casa({
         {etiqueta}
       </span>
       {item ? (
-        <span className="flex h-full flex-col justify-center gap-1 pt-3">
-          <Flag code={item.paisCodigo} size={16} />
-          <span className="font-sans text-[11px] font-medium leading-tight text-mp-ink">
+        <span className="flex flex-col gap-1">
+          <span className="flex items-center justify-center gap-1">
+            <Face url={item.anverso} alt="Anverso" pais={item.paisCodigo} />
+            <Face url={item.reverso} alt="Reverso" pais={item.paisCodigo} />
+          </span>
+          <span className="truncate font-sans text-[11px] font-medium leading-tight text-mp-ink" title={item.denominacao ?? item.titulo}>
             {item.denominacao ?? item.titulo}
           </span>
-          <span className="font-serif text-xs text-mp-gold-strong">{item.ano ?? '—'}</span>
-          {item.quantidade > 1 && (
-            <span className="font-sans text-[10px] text-mp-ink-faint">×{item.quantidade}</span>
-          )}
+          <span className="font-serif text-xs text-mp-gold-strong">
+            {item.ano ?? '—'}
+            {item.quantidade > 1 && <span className="ml-1 font-sans text-[10px] text-mp-ink-faint">×{item.quantidade}</span>}
+          </span>
           <span
             role="button"
             tabIndex={0}
             onClick={(e) => { e.stopPropagation(); onRemover(item.alocacaoId) }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onRemover(item.alocacaoId) } }}
-            className="absolute bottom-1.5 right-1.5 hidden rounded-md px-1.5 py-0.5 font-sans text-[10px] text-mp-falta hover:bg-mp-falta-bg group-hover:block"
+            className="absolute bottom-1 right-1 hidden rounded-md bg-mp-surface px-1.5 py-0.5 font-sans text-[10px] text-mp-falta hover:bg-mp-falta-bg group-hover:block"
           >
             Retirar
           </span>
         </span>
       ) : (
-        <span className="grid h-full place-items-center font-serif text-lg text-mp-ink-faint group-hover:text-mp-gold">
+        <span className="grid min-h-[6rem] place-items-center font-serif text-lg text-mp-ink-faint group-hover:text-mp-gold">
           +
         </span>
       )}
     </button>
   )
+}
+
+// Anverso/reverso da moeda; sem foto cai na bandeira do país.
+function Face({ url, alt, pais }: { url: string | null; alt: string; pais: string }) {
+  const anel = 'h-12 w-12 shrink-0 rounded-full bg-mp-surface-muted object-cover ring-1 ring-mp-border'
+  if (!url) {
+    return (
+      <span className={`grid ${anel} place-items-center`} title={alt}>
+        <Flag code={pais} size={16} />
+      </span>
+    )
+  }
+  return <img src={url} alt={alt} loading="lazy" className={anel} />
 }

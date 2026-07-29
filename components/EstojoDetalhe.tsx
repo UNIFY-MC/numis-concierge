@@ -7,6 +7,7 @@ import EstojoQuickAdd from '@/components/EstojoQuickAdd'
 import EstojoGrelha from '@/components/EstojoGrelha'
 import EstojoPosicao from '@/components/EstojoPosicao'
 import EstojoModal from '@/components/EstojoModal'
+import EstojoPrint from '@/components/EstojoPrint'
 import { eur } from '@/lib/valor'
 import {
   arrumarSemCasa,
@@ -100,6 +101,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
 
   return (
     <div className="w-full px-6 py-8">
+      <div className="print:hidden">
       <Link href="/estojos" className="mb-4 inline-flex items-center gap-1 font-sans text-sm text-mp-ink-soft hover:text-mp-ink">
         ← Estojos
       </Link>
@@ -114,13 +116,20 @@ export default function EstojoDetalhe({ id }: { id: string }) {
             {totalMercado > 0 && <span> · <b className="font-serif text-mp-gold-strong">{eur(totalMercado)}</b> mercado</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 print:hidden">
           {temGrelha && (
             <div className="flex gap-1 rounded-xl border border-mp-border bg-mp-surface p-1">
               <button onClick={() => setVista('grelha')} className={aba(vista === 'grelha')}>Grelha</button>
               <button onClick={() => setVista('tabela')} className={aba(vista === 'tabela')}>Tabela</button>
             </div>
           )}
+          <button
+            onClick={() => window.print()}
+            disabled={!estojo}
+            className="rounded-xl border border-mp-border bg-mp-surface px-3 py-2 font-sans text-xs font-semibold text-mp-ink-soft hover:border-mp-gold hover:text-mp-gold-strong disabled:opacity-50"
+          >
+            Imprimir
+          </button>
           <button
             onClick={() => setEditar(true)}
             disabled={!estojo}
@@ -228,6 +237,10 @@ export default function EstojoDetalhe({ id }: { id: string }) {
           </table>
         </div>
       )}
+
+      </div>
+
+      {estojo && itens && <EstojoPrint estojo={estojo} itens={itens} />}
 
       {editar && estojo && (
         <EstojoModal

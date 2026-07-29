@@ -46,7 +46,7 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 border-b border-mp-border bg-mp-surface px-4 pt-[env(safe-area-inset-top)] md:hidden">
+      <header className="fixed inset-x-0 top-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 border-b border-mp-border bg-mp-surface px-4 pt-[env(safe-area-inset-top)] md:hidden print:hidden">
         <button
           type="button"
           onClick={abrir}
@@ -72,7 +72,7 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
 
       <aside
         data-sidebar
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col gap-6 overflow-y-auto border-r border-mp-border bg-mp-surface px-4 pb-6 transition-transform duration-200 md:sticky md:top-0 md:z-auto md:w-60 md:translate-x-0 md:transition-[width] ${topoSeguro} ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col gap-6 overflow-y-auto border-r border-mp-border bg-mp-surface px-4 pb-6 transition-transform duration-200 md:sticky md:top-0 md:z-auto md:w-60 md:translate-x-0 md:transition-[width] print:hidden ${topoSeguro} ${
           aberto ? 'translate-x-0' : '-translate-x-full'
         } ${compacto ? 'md:w-[4.5rem] md:px-2' : 'md:px-4'}`}
       >
