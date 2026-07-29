@@ -115,7 +115,10 @@ function Card({ e, onEditar }: { e: EstojoResumo; onEditar: () => void }) {
         className="group block rounded-2xl border border-mp-border bg-mp-surface p-5 transition-colors hover:border-mp-gold"
       >
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-serif text-lg font-semibold text-mp-ink group-hover:text-mp-gold-strong">{e.nome}</h3>
+          <h3 className="flex items-center gap-2 font-serif text-lg font-semibold text-mp-ink group-hover:text-mp-gold-strong">
+            {e.nome}
+            {e.fechado && <span title="Estojo fechado" className="font-sans text-xs text-mp-ink-faint">🔒</span>}
+          </h3>
           {e.tipo && (
             <span className="mr-14 shrink-0 rounded-full bg-mp-surface-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-mp-ink-soft">
               {e.tipo}
@@ -145,12 +148,14 @@ function Card({ e, onEditar }: { e: EstojoResumo; onEditar: () => void }) {
           )}
         </p>
       </Link>
-      <button
-        onClick={onEditar}
-        className="absolute right-3 top-3 rounded-lg px-2 py-1 font-sans text-[11px] text-mp-ink-soft hover:bg-mp-surface-muted hover:text-mp-gold-strong print:hidden"
-      >
-        Editar
-      </button>
+      {!e.fechado && (
+        <button
+          onClick={onEditar}
+          className="absolute right-3 top-3 rounded-lg px-2 py-1 font-sans text-[11px] text-mp-ink-soft hover:bg-mp-surface-muted hover:text-mp-gold-strong print:hidden"
+        >
+          Editar
+        </button>
+      )}
     </div>
   )
 }

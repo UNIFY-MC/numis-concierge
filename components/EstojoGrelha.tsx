@@ -1,6 +1,7 @@
 'use client'
 
 import Flag from '@/components/Flag'
+import { eur } from '@/lib/valor'
 import type { CSSProperties } from 'react'
 import type { EstojoConteudoItem, Posicao } from '@/lib/estojos'
 
@@ -11,6 +12,7 @@ export default function EstojoGrelha({
   colunas,
   posicao,
   soAFolha,
+  bloqueado,
   onEscolher,
   onRemover,
 }: {
@@ -19,6 +21,7 @@ export default function EstojoGrelha({
   colunas: number
   posicao: Posicao
   soAFolha: boolean
+  bloqueado: boolean
   onEscolher: (p: Posicao) => void
   onRemover: (alocacaoId: string) => void
 }) {
@@ -53,6 +56,7 @@ export default function EstojoGrelha({
                   item={item}
                   activa={activa}
                   etiqueta={`L${linha} · C${coluna}`}
+                  bloqueado={bloqueado}
                   onEscolher={() => onEscolher({ folha: f, linha, coluna })}
                   onRemover={onRemover}
                 />
@@ -75,12 +79,14 @@ function Casa({
   item,
   activa,
   etiqueta,
+  bloqueado,
   onEscolher,
   onRemover,
 }: {
   item: EstojoConteudoItem | undefined
   activa: boolean
   etiqueta: string
+  bloqueado: boolean
   onEscolher: () => void
   onRemover: (alocacaoId: string) => void
 }) {
@@ -104,19 +110,26 @@ function Casa({
           <span className="truncate font-sans text-[11px] font-medium leading-tight text-mp-ink" title={item.denominacao ?? item.titulo}>
             {item.denominacao ?? item.titulo}
           </span>
-          <span className="font-serif text-xs text-mp-gold-strong">
-            {item.ano ?? '—'}
-            {item.quantidade > 1 && <span className="ml-1 font-sans text-[10px] text-mp-ink-faint">×{item.quantidade}</span>}
+          <span className="flex items-end justify-between gap-1">
+            <span className="font-serif text-xs text-mp-gold-strong">
+              {item.ano ?? '—'}
+              {item.quantidade > 1 && <span className="ml-1 font-sans text-[10px] text-mp-ink-faint">×{item.quantidade}</span>}
+            </span>
+            {item.valorMercado != null && (
+              <span className="font-serif text-xs font-semibold text-mp-gold-strong">{eur(item.valorMercado)}</span>
+            )}
           </span>
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); onRemover(item.alocacaoId) }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onRemover(item.alocacaoId) } }}
-            className="absolute bottom-1 right-1 hidden rounded-md bg-mp-surface px-1.5 py-0.5 font-sans text-[10px] text-mp-falta hover:bg-mp-falta-bg group-hover:block"
-          >
-            Retirar
-          </span>
+          {!bloqueado && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onRemover(item.alocacaoId) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onRemover(item.alocacaoId) } }}
+              className="absolute bottom-1 left-1 hidden rounded-md bg-mp-surface px-1.5 py-0.5 font-sans text-[10px] text-mp-falta hover:bg-mp-falta-bg group-hover:block"
+            >
+              Retirar
+            </span>
+          )}
         </span>
       ) : (
         <span className="grid min-h-[6rem] place-items-center font-serif text-lg text-mp-ink-faint group-hover:text-mp-gold">

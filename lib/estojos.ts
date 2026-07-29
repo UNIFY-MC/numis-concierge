@@ -11,6 +11,7 @@ export interface Estojo {
   localizacao: string | null
   linhas: number | null
   colunas: number | null
+  fechado: boolean
 }
 
 // Casa física de uma moeda dentro do estojo: folha (página do álbum) + linha + coluna.
@@ -32,7 +33,7 @@ export interface MoedaCatalogo {
   anoFim: number | null
 }
 
-const ESTOJO_COLS = 'id, nome, tipo, cor, descricao, localizacao, linhas, colunas'
+const ESTOJO_COLS = 'id, nome, tipo, cor, descricao, localizacao, linhas, colunas, fechado'
 
 export interface EstojoResumo extends Estojo {
   moedas: number // exemplares distintos (linhas de colecção) neste estojo
@@ -197,6 +198,20 @@ export async function findOrCreateEstojo(nome: string, tipo?: string | null): Pr
     .single()
   if (error) throw error
   return data
+}
+
+// Trinco do estojo. O PIN (4 dígitos) é comparado na BD — o browser nunca vê o
+// hash. Fechado, a própria BD recusa mexer nas casas.
+export async function trancarEstojo(id: string, pin: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('estojo_trancar', { p_id: id, p_pin: pin })
+  if (error) throw error
+  return data === true
+}
+
+export async function destrancarEstojo(id: string, pin: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('estojo_destrancar', { p_id: id, p_pin: pin })
+  if (error) throw error
+  return data === true
 }
 
 export interface PaisCatalogo {
