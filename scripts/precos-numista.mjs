@@ -23,17 +23,23 @@ import { createClient } from '@supabase/supabase-js'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 config({ path: join(ROOT, '.env.local') })
 const API = 'https://api.numista.com/v3'
-// .env.local pode ter mais que uma NUMISTA_API_KEY (o dotenv fica com a última);
-// usamos a PRIMEIRA do ficheiro — é onde o dono põe a key com quota.
-function resolveKey() {
+// Há mais que uma conta Numista (2000 pedidos/mês cada). Juntam-se todas as
+// chaves — .env.local (o dotenv só fica com a última, por isso lê-se o ficheiro),
+// NUMISTA_API_KEY_2/_3 e o que vier do ambiente — e roda-se quando uma esgota.
+function resolveKeys() {
+  const ks = []
   try {
     const raw = readFileSync(join(ROOT, '.env.local'), 'utf8')
-    const ms = [...raw.matchAll(/^\s*NUMISTA_API_KEY\s*=\s*["']?([0-9a-zA-Z]+)/gm)].map((m) => m[1])
-    if (ms.length) return ms[0]
-  } catch { /* fallback abaixo */ }
-  return process.env.NUMISTA_API_KEY
+    for (const m of raw.matchAll(/^\s*NUMISTA_API_KEY(?:_\d+)?\s*=\s*["']?([0-9a-zA-Z]+)/gm)) ks.push(m[1])
+  } catch { /* ambiente abaixo */ }
+  for (const [k, v] of Object.entries(process.env)) {
+    if (/^NUMISTA_API_KEY(_\d+)?$/.test(k) && v) ks.push(v.trim())
+  }
+  return [...new Set(ks)]
 }
-const KEY = resolveKey()
+const KEYS = resolveKeys()
+let keyIdx = 0
+const esgotadas = new Set()
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
   db: { schema: 'numis' }, auth: { persistSession: false },
 })
@@ -42,13 +48,24 @@ const PROBE = args.includes('--probe')
 const li = args.indexOf('--limit'); const LIMIT = li >= 0 ? parseInt(args[li + 1], 10) : Infinity
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// Quota esgotada não é fim de linha enquanto houver outra conta por usar.
 async function precos(typeId, issueId) {
-  await sleep(800)
-  const r = await fetch(`${API}/types/${typeId}/issues/${issueId}/prices?currency=EUR&lang=en`, {
-    headers: { 'Numista-API-Key': KEY },
-  })
-  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 120)}`)
-  return r.json()
+  for (;;) {
+    if (esgotadas.size >= KEYS.length) throw new Error('429 quota esgotada em todas as chaves')
+    while (esgotadas.has(keyIdx)) keyIdx = (keyIdx + 1) % KEYS.length
+    await sleep(800)
+    const r = await fetch(`${API}/types/${typeId}/issues/${issueId}/prices?currency=EUR&lang=en`, {
+      headers: { 'Numista-API-Key': KEYS[keyIdx] },
+    })
+    if (r.ok) return r.json()
+    const corpo = (await r.text()).slice(0, 120)
+    if (r.status === 429 || /quota/i.test(corpo)) {
+      console.log(`  ↻ chave #${keyIdx + 1} esgotada — a passar à seguinte`)
+      esgotadas.add(keyIdx)
+      continue
+    }
+    throw new Error(`${r.status} ${corpo}`)
+  }
 }
 
 // Extrai um valor representativo do payload (defensivo — shape a confirmar no probe).
@@ -69,7 +86,8 @@ function representativo(j) {
 }
 
 async function main() {
-  if (!KEY) { console.error('❌ falta NUMISTA_API_KEY'); process.exit(1) }
+  if (!KEYS.length) { console.error('❌ falta NUMISTA_API_KEY'); process.exit(1) }
+  console.log(`${KEYS.length} chave(s) Numista disponíveis.`)
 
   // issues da coleção (quantidade>0) por precificar (valor_mercado null) com
   // numista_issue_id + numista_id do coin — PAGINADO (PostgREST corta nos 1000).
