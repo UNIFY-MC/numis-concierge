@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import EstojoModal from '@/components/EstojoModal'
+import EstojoTrinco from '@/components/EstojoTrinco'
 import EstojosPrint from '@/components/EstojosPrint'
 import { eur } from '@/lib/valor'
 import { getEstojosComResumo, type EstojoResumo } from '@/lib/estojos'
@@ -17,6 +18,7 @@ export default function EstojosView() {
   const [estojos, setEstojos] = useState<EstojoResumo[] | null>(null)
   const [criar, setCriar] = useState(false)
   const [editar, setEditar] = useState<EstojoResumo | null>(null)
+  const [trinco, setTrinco] = useState<EstojoResumo | null>(null)
 
   async function recarregar() {
     setEstojos(await getEstojosComResumo())
@@ -80,7 +82,9 @@ export default function EstojosView() {
                 {loc}
               </h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {lista.map((e) => <Card key={e.id} e={e} onEditar={() => setEditar(e)} />)}
+                {lista.map((e) => (
+                  <Card key={e.id} e={e} onEditar={() => setEditar(e)} onTrinco={() => setTrinco(e)} />
+                ))}
               </div>
             </section>
           ))}
@@ -88,6 +92,18 @@ export default function EstojosView() {
       )}
 
       {estojos && estojos.length > 0 && <EstojosPrint estojos={estojos} />}
+
+      {trinco && (
+        <EstojoTrinco
+          estojoId={trinco.id}
+          fechado={trinco.fechado}
+          onClose={() => setTrinco(null)}
+          onFeito={async () => {
+            setTrinco(null)
+            await recarregar()
+          }}
+        />
+      )}
 
       {(criar || editar) && (
         <EstojoModal
@@ -106,7 +122,7 @@ export default function EstojosView() {
 
 // Cartão de estojo: identidade (tipo, localização), ocupação e valor — o que se
 // quer saber sem abrir.
-function Card({ e, onEditar }: { e: EstojoResumo; onEditar: () => void }) {
+function Card({ e, onEditar, onTrinco }: { e: EstojoResumo; onEditar: () => void; onTrinco: () => void }) {
   const pct = e.casas ? Math.min(100, Math.round((e.moedas / e.casas) * 100)) : null
   return (
     <div className="relative">
@@ -148,14 +164,23 @@ function Card({ e, onEditar }: { e: EstojoResumo; onEditar: () => void }) {
           )}
         </p>
       </Link>
-      {!e.fechado && (
+      <div className="absolute right-3 top-3 flex items-center gap-1 print:hidden">
+        {!e.fechado && (
+          <button
+            onClick={onEditar}
+            className="rounded-lg px-2 py-1 font-sans text-[11px] text-mp-ink-soft hover:bg-mp-surface-muted hover:text-mp-gold-strong"
+          >
+            Editar
+          </button>
+        )}
         <button
-          onClick={onEditar}
-          className="absolute right-3 top-3 rounded-lg px-2 py-1 font-sans text-[11px] text-mp-ink-soft hover:bg-mp-surface-muted hover:text-mp-gold-strong print:hidden"
+          onClick={onTrinco}
+          title={e.fechado ? 'Reabrir com PIN' : 'Fechar estojo com PIN'}
+          className="rounded-lg px-2 py-1 font-sans text-[11px] text-mp-ink-soft hover:bg-mp-surface-muted hover:text-mp-gold-strong"
         >
-          Editar
+          {e.fechado ? 'Reabrir' : 'Fechar'}
         </button>
-      )}
+      </div>
     </div>
   )
 }
