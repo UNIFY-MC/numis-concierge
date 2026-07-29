@@ -9,7 +9,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-mp-bg">
       <Sidebar isAdmin={profile?.isAdmin ?? false} />
-      <main className="flex-1 min-w-0">{children}</main>
+      {/* Compensa a barra fixa do topo, que só existe abaixo de md. */}
+      <main className="flex-1 min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top))] md:pt-0">{children}</main>
     </div>
   )
 }
