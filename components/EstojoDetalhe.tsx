@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Flag from '@/components/Flag'
 import EstojoQuickAdd from '@/components/EstojoQuickAdd'
 import EstojoGrelha from '@/components/EstojoGrelha'
+import EstojoFolhas from '@/components/EstojoFolhas'
 import EstojoPosicao from '@/components/EstojoPosicao'
 import EstojoModal from '@/components/EstojoModal'
 import EstojoPrint from '@/components/EstojoPrint'
@@ -40,6 +41,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   const [posicao, setPosicao] = useState<Posicao | null>(null)
   const [vista, setVista] = useState<'grelha' | 'tabela'>('grelha')
   const [editar, setEditar] = useState(false)
+  const [soAFolha, setSoAFolha] = useState(true)
   // Folha onde se está a trabalhar: a inserção nunca recua para buracos de folhas
   // anteriores. 0 = ainda não se escolheu nenhuma (arranca na última usada).
   const folhaRef = useRef(0)
@@ -93,6 +95,11 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   const temGrelha = !!(estojo?.linhas && estojo?.colunas)
   const proximaOrdem = lista.reduce((m, i) => Math.max(m, i.ordem), 0) + 1
   const semCasa = lista.filter((i) => !i.linha || !i.coluna).length
+  const folhasUsadas = Math.max(lista.reduce((m, i) => Math.max(m, i.folha ?? 1), 1), posicao?.folha ?? 1)
+  // A tabela obedece ao mesmo filtro da grelha: ver só a folha em que se trabalha.
+  const naVista = temGrelha && soAFolha && posicao
+    ? lista.filter((i) => (i.folha ?? 1) === posicao.folha)
+    : lista
 
   const th = 'px-3 py-2.5 font-semibold whitespace-nowrap'
   const td = 'px-3 py-2 whitespace-nowrap'
@@ -165,6 +172,16 @@ export default function EstojoDetalhe({ id }: { id: string }) {
         onAdded={carregar}
       />
 
+      {temGrelha && posicao && (
+        <EstojoFolhas
+          folhas={folhasUsadas}
+          activa={posicao.folha}
+          soAFolha={soAFolha}
+          onFolha={escolherFolha}
+          onSoAFolha={setSoAFolha}
+        />
+      )}
+
       {itens === null ? (
         <p className="font-sans text-sm text-mp-ink-soft">A carregar…</p>
       ) : temGrelha && posicao && vista === 'grelha' ? (
@@ -173,13 +190,15 @@ export default function EstojoDetalhe({ id }: { id: string }) {
           linhas={estojo!.linhas!}
           colunas={estojo!.colunas!}
           posicao={posicao}
+          soAFolha={soAFolha}
           onEscolher={escolherPosicao}
-          onFolha={escolherFolha}
           onRemover={remover}
         />
-      ) : itens.length === 0 ? (
+      ) : naVista.length === 0 ? (
         <p className="rounded-2xl border border-mp-border bg-mp-surface p-6 font-sans text-sm text-mp-ink-soft">
-          Este estojo ainda não tem moedas. Usa a barra acima para pesquisar e adicionar.
+          {lista.length === 0
+            ? 'Este estojo ainda não tem moedas. Usa a barra acima para pesquisar e adicionar.'
+            : 'Esta folha ainda está vazia. Desliga "Mostrar só esta folha" para veres o estojo todo.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-mp-border bg-mp-surface">
@@ -201,7 +220,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody>
-              {itens.map((i, idx) => (
+              {naVista.map((i, idx) => (
                 <tr key={i.alocacaoId} className="border-b border-mp-border last:border-0 hover:bg-mp-surface-muted">
                   <td className={td + ' font-serif font-semibold text-mp-gold'}>{i.ordem || idx + 1}</td>
                   {temGrelha && (
