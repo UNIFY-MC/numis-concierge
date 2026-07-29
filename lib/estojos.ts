@@ -45,6 +45,8 @@ export interface EstojoResumo extends Estojo {
 export interface EstojoConteudoItem {
   alocacaoId: string
   collectionId: string
+  coinId: string | null
+  issueId: string | null
   ordem: number
   folha: number | null
   linha: number | null
@@ -397,6 +399,113 @@ export async function arrumarSemCasa(estojoId: string, linhas: number, colunas: 
   return soltas.length
 }
 
+export interface VarianteOpcao {
+  issueId: string
+  ano: string
+  label: string
+}
+
+// Variantes (issues) dos tipos presentes no estojo, para trocar a variante de um
+// exemplar já arrumado sem ter de o retirar e voltar a inserir.
+export async function getVariantesDeCoins(coinIds: string[]): Promise<Record<string, VarianteOpcao[]>> {
+  const ids = [...new Set(coinIds.filter(Boolean))]
+  if (ids.length === 0) return {}
+  const { data, error } = await supabase
+    .from('catalog_issues')
+    .select('id, catalog_coin_id, ano, mintmark_variante, etiqueta, catalog_coins:catalog_coin_id ( titulo )')
+    .in('catalog_coin_id', ids)
+  if (error) throw error
+
+  type Row = {
+    id: string; catalog_coin_id: string; ano: string | null
+    mintmark_variante: string | null; etiqueta: string | null
+    catalog_coins: { titulo: string } | null
+  }
+  const map: Record<string, VarianteOpcao[]> = {}
+  for (const r of (data ?? []) as unknown as Row[]) {
+    ;(map[r.catalog_coin_id] ??= []).push({
+      issueId: r.id,
+      ano: r.ano ?? '',
+      label: varianteSimples(r.catalog_coins?.titulo ?? null, r.mintmark_variante, r.etiqueta) ?? 'Base',
+    })
+  }
+  // Base primeiro: é o que se quer por defeito.
+  for (const lista of Object.values(map)) {
+    lista.sort((a, b) => Number(b.label === 'Base') - Number(a.label === 'Base') || a.label.localeCompare(b.label, 'pt'))
+  }
+  return map
+}
+
+// Troca a variante de um exemplar arrumado: a alocação passa a apontar para a
+// linha de posse do novo issue (criando-a se preciso). Move o exemplar de uma
+// variante para a outra, sem mexer no resto da colecção.
+export async function mudarVarianteAlocacao(alocacaoId: string, novoIssueId: string): Promise<void> {
+  const { data: aloc, error: eA } = await supabase
+    .from('colecao_estojo')
+    .select('id, collection_id, quantidade')
+    .eq('id', alocacaoId)
+    .single()
+  if (eA) throw eA
+
+  const { data: antiga, error: eC } = await supabase
+    .from('collection')
+    .select('id, user_id, catalog_coin_id, catalog_issue_id, formato_posse, quantidade')
+    .eq('id', aloc.collection_id)
+    .single()
+  if (eC) throw eC
+  if (antiga.catalog_issue_id === novoIssueId) return
+
+  let q = supabase
+    .from('collection')
+    .select('id, quantidade')
+    .eq('catalog_issue_id', novoIssueId)
+  q = antiga.formato_posse ? q.eq('formato_posse', antiga.formato_posse) : q.is('formato_posse', null)
+  const { data: nova } = await q.limit(1).maybeSingle()
+
+  let novoId: string
+  if (nova) {
+    novoId = nova.id
+    await supabase
+      .from('collection')
+      .update({ quantidade: Math.max(nova.quantidade, 0) + aloc.quantidade })
+      .eq('id', nova.id)
+  } else {
+    const { data, error } = await supabase
+      .from('collection')
+      .insert({
+        user_id: antiga.user_id,
+        catalog_coin_id: antiga.catalog_coin_id,
+        catalog_issue_id: novoIssueId,
+        formato_posse: antiga.formato_posse,
+        quantidade: aloc.quantidade,
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    novoId = data.id
+  }
+
+  const { error: eU } = await supabase
+    .from('colecao_estojo')
+    .update({ collection_id: novoId })
+    .eq('id', alocacaoId)
+  if (eU) throw eU
+
+  // A posse antiga perde o exemplar movido, mas nunca desce abaixo do que lá
+  // continua arrumado noutras casas.
+  const { data: restantes } = await supabase
+    .from('colecao_estojo')
+    .select('quantidade')
+    .eq('collection_id', antiga.id)
+  const soma = (restantes ?? []).reduce((s: number, r: { quantidade: number }) => s + r.quantidade, 0)
+  await supabase
+    .from('collection')
+    .update({ quantidade: Math.max(antiga.quantidade - aloc.quantidade, soma, 0) })
+    .eq('id', antiga.id)
+
+  invalidateCollection()
+}
+
 // Corrige a casa de um exemplar já arrumado.
 export async function moverAlocacao(alocacaoId: string, pos: Posicao): Promise<void> {
   const { error } = await supabase
@@ -624,6 +733,7 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
     .from('colecao_estojo')
     .select(
       'id, quantidade, ordem, folha, linha, coluna, collection:collection_id ( id, formato_posse, grau, foto1, ' +
+        'catalog_coin_id, catalog_issue_id, ' +
         'catalog_coins:catalog_coin_id ( titulo, denominacao, pais_codigo, pais_nome, serie, metal, valor_facial, anverso_img, reverso_img ), ' +
         'catalog_issues:catalog_issue_id ( ano, valor_mercado, mintmark_variante, etiqueta, anverso_img, reverso_img ) )',
     )
@@ -642,6 +752,8 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
       formato_posse: string | null
       grau: string | null
       foto1: string | null
+      catalog_coin_id: string | null
+      catalog_issue_id: string | null
       catalog_coins: {
         titulo: string; denominacao: string | null; pais_codigo: string; pais_nome: string | null
         serie: string | null; metal: string | null; valor_facial: number | null
@@ -662,6 +774,8 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
       return {
         alocacaoId: r.id,
         collectionId: r.collection!.id,
+        coinId: r.collection!.catalog_coin_id,
+        issueId: r.collection!.catalog_issue_id,
         ordem: r.ordem ?? 0,
         folha: r.folha,
         linha: r.linha,

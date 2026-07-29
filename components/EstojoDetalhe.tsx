@@ -7,6 +7,7 @@ import EstojoQuickAdd from '@/components/EstojoQuickAdd'
 import EstojoGrelha from '@/components/EstojoGrelha'
 import EstojoFolhas from '@/components/EstojoFolhas'
 import EstojoPosicao from '@/components/EstojoPosicao'
+import EstojoVariante from '@/components/EstojoVariante'
 import EstojoModal from '@/components/EstojoModal'
 import EstojoPrint from '@/components/EstojoPrint'
 import { eur } from '@/lib/valor'
@@ -14,8 +15,10 @@ import {
   arrumarSemCasa,
   getConteudoEstojo,
   getEstojo,
+  getVariantesDeCoins,
   proximaPosicao,
   removerAlocacao,
+  type VarianteOpcao,
   type EstojoConteudoItem,
   type Estojo,
   type Posicao,
@@ -42,6 +45,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   const [vista, setVista] = useState<'grelha' | 'tabela'>('grelha')
   const [editar, setEditar] = useState(false)
   const [soAFolha, setSoAFolha] = useState(true)
+  const [variantes, setVariantes] = useState<Record<string, VarianteOpcao[]>>({})
   // Folha onde se está a trabalhar: a inserção nunca recua para buracos de folhas
   // anteriores. 0 = ainda não se escolheu nenhuma (arranca na última usada).
   const folhaRef = useRef(0)
@@ -50,6 +54,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
     const [e, conteudo] = await Promise.all([getEstojo(id), getConteudoEstojo(id)])
     setEstojo(e)
     setItens(conteudo)
+    getVariantesDeCoins(conteudo.map((i) => i.coinId ?? '')).then(setVariantes).catch(() => {})
     // Sem grelha definida não há casas: as moedas entram por ordem de chegada.
     if (!e?.linhas || !e?.colunas) {
       setPosicao(null)
@@ -239,7 +244,9 @@ export default function EstojoDetalhe({ id }: { id: string }) {
                   </td>
                   <td className={td + ' text-mp-ink-soft'}>{i.serie ?? '—'}</td>
                   <td className={td + ' text-mp-ink-soft'}>{i.ano ?? '—'}</td>
-                  <td className={td + ' text-mp-ink-soft'}>{i.variante ?? '—'}</td>
+                  <td className={td + ' text-mp-ink-soft'}>
+                    <EstojoVariante item={i} opcoes={variantes[i.coinId ?? ''] ?? []} onGuardado={carregar} />
+                  </td>
                   <td className={td + ' text-mp-ink-soft'}>{i.formato ? FORMATO_CURTO[i.formato] ?? i.formato : '—'}</td>
                   <td className={td + ' text-mp-ink-soft'}>{i.grau ?? '—'}</td>
                   <td className={td + ' text-mp-ink-soft'}>{metalPt(i.metal)}</td>

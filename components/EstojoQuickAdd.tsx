@@ -126,14 +126,22 @@ export default function EstojoQuickAdd({
     return [...m.entries()].sort((a, b) => a[1] - b[1]).map(([a]) => a)
   }, [candidatos, moedaSel])
 
+  // Base primeiro: a variedade é a excepção, escolhe-se de propósito.
   const candSel = useMemo(
-    () => (moedaSel && anoSel ? candidatos.filter((c) => c.denom === moedaSel && c.ano === anoSel) : []),
+    () =>
+      (moedaSel && anoSel ? candidatos.filter((c) => c.denom === moedaSel && c.ano === anoSel) : []).sort(
+        (a, b) => Number(b.vlabel === 'Base') - Number(a.vlabel === 'Base') || a.vlabel.localeCompare(b.vlabel, 'pt'),
+      ),
     [candidatos, moedaSel, anoSel],
   )
   const resolved = useMemo(() => candSel.find((c) => c.issueId === varSel) ?? candSel[0] ?? null, [candSel, varSel])
   const fmts = resolved ? formatosDe(resolved.familia) : []
 
-  useEffect(() => { if (candSel.length && !candSel.some((c) => c.issueId === varSel)) setVarSel(candSel[0].issueId) }, [candSel, varSel])
+  useEffect(() => {
+    if (candSel.length && !candSel.some((c) => c.issueId === varSel)) {
+      setVarSel((candSel.find((c) => c.vlabel === 'Base') ?? candSel[0]).issueId)
+    }
+  }, [candSel, varSel])
   useEffect(() => {
     if (fmts.length && !fmts.includes(formato as FormatoColecao)) {
       setFormato(fmts.includes('normal' as FormatoColecao) ? ('normal' as FormatoColecao) : fmts[0])
