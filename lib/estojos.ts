@@ -9,6 +9,15 @@ export interface Estojo {
   cor: string | null
   descricao: string | null
   localizacao: string | null
+  linhas: number | null
+  colunas: number | null
+}
+
+// Casa física de uma moeda dentro do estojo: folha (página do álbum) + linha + coluna.
+export interface Posicao {
+  folha: number
+  linha: number
+  coluna: number
 }
 
 export interface MoedaCatalogo {
@@ -23,7 +32,7 @@ export interface MoedaCatalogo {
   anoFim: number | null
 }
 
-const ESTOJO_COLS = 'id, nome, tipo, cor, descricao, localizacao'
+const ESTOJO_COLS = 'id, nome, tipo, cor, descricao, localizacao, linhas, colunas'
 
 export interface EstojoResumo extends Estojo {
   moedas: number // exemplares distintos (linhas de colecção) neste estojo
@@ -34,6 +43,9 @@ export interface EstojoConteudoItem {
   alocacaoId: string
   collectionId: string
   ordem: number
+  folha: number | null
+  linha: number | null
+  coluna: number | null
   quantidade: number
   titulo: string
   denominacao: string | null
@@ -65,6 +77,33 @@ export async function getProximaOrdem(estojoId: string): Promise<number> {
   return proximaOrdem(estojoId)
 }
 
+const chaveCasa = (p: { folha: number | null; linha: number | null; coluna: number | null }) =>
+  `${p.folha ?? 1}:${p.linha}:${p.coluna}`
+
+// Primeira casa livre: varre folha a folha, da esquerda para a direita e de cima
+// para baixo, como se arruma na realidade. Sem grelha definida, continua a contar
+// linhas na folha 1.
+export function proximaPosicao(
+  ocupadas: { folha: number | null; linha: number | null; coluna: number | null }[],
+  linhas: number | null,
+  colunas: number | null,
+): Posicao {
+  const usadas = new Set(ocupadas.filter((o) => o.linha && o.coluna).map(chaveCasa))
+  if (!linhas || !colunas) {
+    const maxLinha = ocupadas.reduce((m, o) => Math.max(m, o.linha ?? 0), 0)
+    return { folha: 1, linha: maxLinha + 1, coluna: 1 }
+  }
+  const maxFolha = ocupadas.reduce((m, o) => Math.max(m, o.folha ?? 1), 1)
+  for (let f = 1; f <= maxFolha + 1; f++) {
+    for (let l = 1; l <= linhas; l++) {
+      for (let c = 1; c <= colunas; c++) {
+        if (!usadas.has(`${f}:${l}:${c}`)) return { folha: f, linha: l, coluna: c }
+      }
+    }
+  }
+  return { folha: maxFolha + 1, linha: 1, coluna: 1 }
+}
+
 async function uid(): Promise<string> {
   const {
     data: { user },
@@ -87,11 +126,17 @@ export async function getEstojo(id: string): Promise<Estojo | null> {
   return data ?? null
 }
 
-export async function criarEstojo(input: {
+export interface EstojoInput {
   nome: string
   tipo?: string | null
   localizacao?: string | null
-}): Promise<Estojo> {
+  linhas?: number | null
+  colunas?: number | null
+}
+
+const grelhaValida = (n: number | null | undefined) => (n && n > 0 ? Math.min(50, Math.round(n)) : null)
+
+export async function criarEstojo(input: EstojoInput): Promise<Estojo> {
   const { data, error } = await supabase
     .from('estojos')
     .insert({
@@ -99,7 +144,26 @@ export async function criarEstojo(input: {
       nome: input.nome.trim(),
       tipo: input.tipo?.trim() || null,
       localizacao: input.localizacao?.trim() || null,
+      linhas: grelhaValida(input.linhas),
+      colunas: grelhaValida(input.colunas),
     })
+    .select(ESTOJO_COLS)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function atualizarEstojo(id: string, input: EstojoInput): Promise<Estojo> {
+  const { data, error } = await supabase
+    .from('estojos')
+    .update({
+      nome: input.nome.trim(),
+      tipo: input.tipo?.trim() || null,
+      localizacao: input.localizacao?.trim() || null,
+      linhas: grelhaValida(input.linhas),
+      colunas: grelhaValida(input.colunas),
+    })
+    .eq('id', id)
     .select(ESTOJO_COLS)
     .single()
   if (error) throw error
@@ -194,12 +258,15 @@ export async function buscarMoedasCatalogo(termo: string): Promise<MoedaCatalogo
 
 // Adiciona um exemplar a um estojo, garantindo a posse na colecção (regista o
 // que se tem ao arrumá-lo). Mantém posse >= soma das alocações.
+// Cada casa (folha/linha/coluna) é uma linha própria: duas moedas iguais em
+// casas diferentes NÃO se somam — só se somam quando caem na mesma casa.
 export async function adicionarMoedaAoEstojo(input: {
   estojoId: string
   catalogCoinId: string
   catalogIssueId: string
   formato: string | null
   quantidade: number
+  posicao?: Posicao | null
 }): Promise<void> {
   const qtd = Math.max(1, input.quantidade)
   const meu = await uid()
@@ -228,18 +295,30 @@ export async function adicionarMoedaAoEstojo(input: {
     collectionId = data.id
   }
 
-  // 2. alocar ao estojo (soma se já lá estava)
-  const { data: aloc } = await supabase
-    .from('colecao_estojo')
-    .select('id, quantidade')
-    .eq('collection_id', collectionId)
-    .eq('estojo_id', input.estojoId)
-    .maybeSingle()
-  if (aloc) {
+  // 2. alocar à casa indicada (só soma se a MESMA moeda já estiver nessa casa)
+  const pos = input.posicao ?? null
+  const ocupante = pos
+    ? (
+        await supabase
+          .from('colecao_estojo')
+          .select('id, collection_id, quantidade')
+          .eq('estojo_id', input.estojoId)
+          .eq('folha', pos.folha)
+          .eq('linha', pos.linha)
+          .eq('coluna', pos.coluna)
+          .maybeSingle()
+      ).data
+    : null
+
+  if (ocupante && ocupante.collection_id !== collectionId) {
+    throw new Error(`A casa folha ${pos!.folha} · linha ${pos!.linha} · coluna ${pos!.coluna} já está ocupada.`)
+  }
+
+  if (ocupante) {
     const { error } = await supabase
       .from('colecao_estojo')
-      .update({ quantidade: aloc.quantidade + qtd })
-      .eq('id', aloc.id)
+      .update({ quantidade: ocupante.quantidade + qtd })
+      .eq('id', ocupante.id)
     if (error) throw error
   } else {
     const { error } = await supabase.from('colecao_estojo').insert({
@@ -248,6 +327,9 @@ export async function adicionarMoedaAoEstojo(input: {
       estojo_id: input.estojoId,
       quantidade: qtd,
       ordem: await proximaOrdem(input.estojoId),
+      folha: pos?.folha ?? null,
+      linha: pos?.linha ?? null,
+      coluna: pos?.coluna ?? null,
     })
     if (error) throw error
   }
@@ -275,6 +357,21 @@ export async function removerDoEstojo(collectionId: string, estojoId: string): P
   if (error) throw error
 }
 
+// Retira UMA casa (a moeda pode ocupar várias no mesmo estojo).
+export async function removerAlocacao(alocacaoId: string): Promise<void> {
+  const { error } = await supabase.from('colecao_estojo').delete().eq('id', alocacaoId)
+  if (error) throw error
+}
+
+// Corrige a casa de um exemplar já arrumado.
+export async function moverAlocacao(alocacaoId: string, pos: Posicao): Promise<void> {
+  const { error } = await supabase
+    .from('colecao_estojo')
+    .update({ folha: pos.folha, linha: pos.linha, coluna: pos.coluna })
+    .eq('id', alocacaoId)
+  if (error) throw error
+}
+
 export interface AlocacaoEdit {
   estojoId: string
   quantidade: number
@@ -290,9 +387,13 @@ export async function getAlocacoesDetalhe(
     .select('collection_id, estojo_id, quantidade')
     .in('collection_id', collectionIds)
   if (error) throw error
+  // O mesmo exemplar pode ocupar várias casas do mesmo estojo — a ficha mostra o total.
   const map: Record<string, AlocacaoEdit[]> = {}
   for (const r of (data ?? []) as { collection_id: string; estojo_id: string; quantidade: number }[]) {
-    ;(map[r.collection_id] ??= []).push({ estojoId: r.estojo_id, quantidade: r.quantidade })
+    const lista = (map[r.collection_id] ??= [])
+    const ja = lista.find((a) => a.estojoId === r.estojo_id)
+    if (ja) ja.quantidade += r.quantidade
+    else lista.push({ estojoId: r.estojo_id, quantidade: r.quantidade })
   }
   return map
 }
@@ -310,23 +411,36 @@ export async function setAlocacoes(collectionId: string, alocs: AlocacaoEdit[]):
   const rDel = await del
   if (rDel.error) throw rDel.error
 
-  // upsert de cada estojo mantido
+  // Acerta a quantidade por estojo mexendo só na linha sem casa atribuída — as
+  // moedas já arrumadas numa casa (folha/linha/coluna) não se tocam.
   for (const a of validos) {
-    const { data: ex } = await supabase
+    const { data: rows } = await supabase
       .from('colecao_estojo')
-      .select('id')
+      .select('id, quantidade, linha, coluna')
       .eq('collection_id', collectionId)
       .eq('estojo_id', a.estojoId)
-      .maybeSingle()
-    if (ex) {
-      const { error } = await supabase.from('colecao_estojo').update({ quantidade: a.quantidade }).eq('id', ex.id)
+    const lista = (rows ?? []) as { id: string; quantidade: number; linha: number | null; coluna: number | null }[]
+    const arrumadas = lista.filter((r) => r.linha != null && r.coluna != null)
+    const soltas = lista.filter((r) => r.linha == null || r.coluna == null)
+    const emCasas = arrumadas.reduce((s, r) => s + r.quantidade, 0)
+    const resto = a.quantidade - emCasas
+
+    const sobra = resto > 0 ? soltas.slice(1) : soltas
+    if (sobra.length) {
+      const { error } = await supabase.from('colecao_estojo').delete().in('id', sobra.map((r) => r.id))
+      if (error) throw error
+    }
+    if (resto <= 0) continue
+
+    if (soltas[0]) {
+      const { error } = await supabase.from('colecao_estojo').update({ quantidade: resto }).eq('id', soltas[0].id)
       if (error) throw error
     } else {
       const { error } = await supabase.from('colecao_estojo').insert({
         user_id: meu,
         collection_id: collectionId,
         estojo_id: a.estojoId,
-        quantidade: a.quantidade,
+        quantidade: resto,
         ordem: await proximaOrdem(a.estojoId),
       })
       if (error) throw error
@@ -456,7 +570,7 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
   const { data, error } = await supabase
     .from('colecao_estojo')
     .select(
-      'id, quantidade, ordem, collection:collection_id ( id, formato_posse, grau, ' +
+      'id, quantidade, ordem, folha, linha, coluna, collection:collection_id ( id, formato_posse, grau, ' +
         'catalog_coins:catalog_coin_id ( titulo, denominacao, pais_codigo, pais_nome, serie, metal, valor_facial ), ' +
         'catalog_issues:catalog_issue_id ( ano, valor_mercado, mintmark_variante, etiqueta ) )',
     )
@@ -467,6 +581,9 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
     id: string
     quantidade: number
     ordem: number | null
+    folha: number | null
+    linha: number | null
+    coluna: number | null
     collection: {
       id: string
       formato_posse: string | null
@@ -488,6 +605,9 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
         alocacaoId: r.id,
         collectionId: r.collection!.id,
         ordem: r.ordem ?? 0,
+        folha: r.folha,
+        linha: r.linha,
+        coluna: r.coluna,
         quantidade: r.quantidade,
         titulo: c?.titulo ?? '—',
         denominacao: c?.denominacao ?? null,
@@ -503,7 +623,18 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
         grau: r.collection!.grau,
       }
     })
-    .sort((a, b) => a.ordem - b.ordem)
+    .sort(ordenarPorCasa)
+}
+
+// Ordem de leitura do estojo: folha, depois linha, depois coluna. Sem casa
+// atribuída, cai para o nº de ordem (entradas antigas).
+export function ordenarPorCasa(a: EstojoConteudoItem, b: EstojoConteudoItem): number {
+  const arrumado = (i: EstojoConteudoItem) => i.linha != null && i.coluna != null
+  if (arrumado(a) !== arrumado(b)) return arrumado(a) ? -1 : 1
+  if (!arrumado(a)) return a.ordem - b.ordem
+  return (
+    (a.folha ?? 1) - (b.folha ?? 1) || (a.linha ?? 0) - (b.linha ?? 0) || (a.coluna ?? 0) - (b.coluna ?? 0)
+  )
 }
 
 const VARIANTE_RE = /pattern|countermark|contramarca|aberto|fechado|m[oó]dulo|mule|h[ií]brid|error|erro|restrike|essai|pi[eé]fort|variet|variante|overdate|sobredata|ensaio|prova/i

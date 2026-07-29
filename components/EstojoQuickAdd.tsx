@@ -6,6 +6,7 @@ import {
   adicionarMoedaAoEstojo,
   varianteSimples,
   type PaisCatalogo,
+  type Posicao,
 } from '@/lib/estojos'
 import { getCatalogPais, getIssuesPais } from '@/lib/catalog'
 import { eraDe } from '@/lib/series'
@@ -36,10 +37,16 @@ interface Candidato {
 
 export default function EstojoQuickAdd({
   estojoId,
+  posicao,
+  onPosicao,
+  grelha,
   proximaOrdem,
   onAdded,
 }: {
   estojoId: string
+  posicao: Posicao | null // null = estojo sem grelha (entra por ordem de chegada)
+  onPosicao: (p: Posicao) => void
+  grelha: { linhas: number | null; colunas: number | null }
   proximaOrdem: number
   onAdded: () => void
 }) {
@@ -57,6 +64,7 @@ export default function EstojoQuickAdd({
   const [formato, setFormato] = useState<FormatoColecao | ''>('')
   const [qtd, setQtd] = useState(1)
   const [saving, setSaving] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
 
   useEffect(() => { getPaisesCatalogo().then(setPaises).catch(() => setPaises([])) }, [])
 
@@ -136,23 +144,45 @@ export default function EstojoQuickAdd({
   async function adicionar() {
     if (!resolved) return
     setSaving(true)
+    setErro(null)
     try {
       await adicionarMoedaAoEstojo({
         estojoId, catalogCoinId: resolved.coinId, catalogIssueId: resolved.issueId,
-        formato: formato || null, quantidade: qtd,
+        formato: formato || null, quantidade: qtd, posicao: posicao ?? null,
       })
       onAdded()
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível arrumar a moeda.')
     } finally {
       setSaving(false)
     }
   }
 
+  const setPos = (patch: Partial<Posicao>) => posicao && onPosicao({ ...posicao, ...patch })
+  const num = (v: string) => Math.max(1, parseInt(v, 10) || 1)
+
   return (
     <div className="mb-4 rounded-2xl border border-mp-border bg-mp-surface-muted/50 p-3">
       <div className="flex flex-wrap items-end gap-2">
-        <Campo label="Ordem">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-mp-gold font-serif text-sm font-semibold text-white" title="Nº de ordem no estojo">{proximaOrdem}</span>
-        </Campo>
+        {posicao ? (
+          <>
+            <Campo label="Folha">
+              <input type="number" min={1} value={posicao.folha} onChange={(e) => setPos({ folha: num(e.target.value) })} title="Folha/página do estojo" className={cel + ' w-14 text-center'} />
+            </Campo>
+
+            <Campo label="Linha">
+              <input type="number" min={1} max={grelha.linhas ?? undefined} value={posicao.linha} onChange={(e) => setPos({ linha: num(e.target.value) })} className={cel + ' w-14 text-center'} />
+            </Campo>
+
+            <Campo label="Coluna">
+              <input type="number" min={1} max={grelha.colunas ?? undefined} value={posicao.coluna} onChange={(e) => setPos({ coluna: num(e.target.value) })} className={cel + ' w-14 text-center'} />
+            </Campo>
+          </>
+        ) : (
+          <Campo label="Ordem">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-mp-gold font-serif text-sm font-semibold text-white" title="Nº de ordem no estojo">{proximaOrdem}</span>
+          </Campo>
+        )}
 
         <Campo label="País">
           <select value={paisSel} onChange={(e) => { setPaisSel(e.target.value); setColSel(''); setPeriodoSel(''); setMoedaSel(''); setAnoSel(''); setVarSel('') }} className={cel + ' w-36'}>
@@ -219,8 +249,12 @@ export default function EstojoQuickAdd({
           {saving ? '…' : 'Adicionar'}
         </button>
       </div>
+      {erro && <p className="mt-1.5 px-1 text-[11px] font-medium text-mp-falta">{erro}</p>}
       <p className="mt-1.5 px-1 text-[11px] text-mp-ink-faint">
-        Portugal por defeito. Escolhe moeda e ano por qualquer ordem; a variante fica "Base" quando não há variedade.
+        {posicao
+          ? `A casa livre seguinte vem preenchida (grelha ${grelha.linhas}×${grelha.colunas}) — altera folha/linha/coluna ou clica numa casa vazia. `
+          : 'Estojo sem grelha: as moedas entram por ordem de chegada. '}
+        Escolhe moeda e ano por qualquer ordem; a variante fica "Base" quando não há variedade.
       </p>
     </div>
   )
