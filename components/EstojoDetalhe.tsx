@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Flag from '@/components/Flag'
 import EstojoQuickAdd from '@/components/EstojoQuickAdd'
@@ -39,13 +39,35 @@ export default function EstojoDetalhe({ id }: { id: string }) {
   const [posicao, setPosicao] = useState<Posicao | null>(null)
   const [vista, setVista] = useState<'grelha' | 'tabela'>('grelha')
   const [editar, setEditar] = useState(false)
+  // Folha onde se está a trabalhar: a inserção nunca recua para buracos de folhas
+  // anteriores. 0 = ainda não se escolheu nenhuma (arranca na última usada).
+  const folhaRef = useRef(0)
 
   async function carregar() {
     const [e, conteudo] = await Promise.all([getEstojo(id), getConteudoEstojo(id)])
     setEstojo(e)
     setItens(conteudo)
     // Sem grelha definida não há casas: as moedas entram por ordem de chegada.
-    setPosicao(e?.linhas && e?.colunas ? proximaPosicao(conteudo, e.linhas, e.colunas) : null)
+    if (!e?.linhas || !e?.colunas) {
+      setPosicao(null)
+      return
+    }
+    const ultima = conteudo.reduce((m, i) => Math.max(m, i.folha ?? 1), 1)
+    const pos = proximaPosicao(conteudo, e.linhas, e.colunas, folhaRef.current || ultima)
+    folhaRef.current = pos.folha
+    setPosicao(pos)
+  }
+
+  function escolherPosicao(p: Posicao) {
+    folhaRef.current = p.folha
+    setPosicao(p)
+  }
+
+  // Saltar para uma folha: assenta na primeira casa livre dessa folha.
+  function escolherFolha(f: number) {
+    if (!estojo?.linhas || !estojo?.colunas) return
+    const p = proximaPosicao(lista, estojo.linhas, estojo.colunas, f)
+    escolherPosicao(p.folha === f ? p : { folha: f, linha: 1, coluna: 1 })
   }
 
   useEffect(() => {
@@ -128,7 +150,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
       <EstojoQuickAdd
         estojoId={id}
         posicao={posicao}
-        onPosicao={setPosicao}
+        onPosicao={escolherPosicao}
         grelha={{ linhas: estojo?.linhas ?? null, colunas: estojo?.colunas ?? null }}
         proximaOrdem={proximaOrdem}
         onAdded={carregar}
@@ -142,7 +164,8 @@ export default function EstojoDetalhe({ id }: { id: string }) {
           linhas={estojo!.linhas!}
           colunas={estojo!.colunas!}
           posicao={posicao}
-          onEscolher={setPosicao}
+          onEscolher={escolherPosicao}
+          onFolha={escolherFolha}
           onRemover={remover}
         />
       ) : itens.length === 0 ? (

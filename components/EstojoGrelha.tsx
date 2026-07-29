@@ -1,7 +1,7 @@
 'use client'
 
 import Flag from '@/components/Flag'
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { EstojoConteudoItem, Posicao } from '@/lib/estojos'
 
 // Réplica visual do estojo: uma folha por página do álbum, cada casa uma moeda.
@@ -11,6 +11,7 @@ export default function EstojoGrelha({
   colunas,
   posicao,
   onEscolher,
+  onFolha,
   onRemover,
 }: {
   itens: EstojoConteudoItem[]
@@ -18,18 +19,37 @@ export default function EstojoGrelha({
   colunas: number
   posicao: Posicao
   onEscolher: (p: Posicao) => void
+  onFolha: (f: number) => void
   onRemover: (alocacaoId: string) => void
 }) {
+  // Ao inserir em série convém ver só a folha em uso; a lista toda é ruído.
+  const [soAFolha, setSoAFolha] = useState(true)
+
   const porCasa = new Map<string, EstojoConteudoItem>()
   for (const i of itens) if (i.linha && i.coluna) porCasa.set(`${i.folha ?? 1}:${i.linha}:${i.coluna}`, i)
 
   const maxFolha = itens.reduce((m, i) => Math.max(m, i.folha ?? 1), 1)
-  const folhas = Array.from({ length: Math.max(maxFolha, posicao.folha) }, (_, i) => i + 1)
+  const todas = Array.from({ length: Math.max(maxFolha, posicao.folha) }, (_, i) => i + 1)
+  const folhas = soAFolha ? todas.filter((f) => f === posicao.folha) : todas
   const soltas = itens.filter((i) => !i.linha || !i.coluna)
   const grid = { '--cols': colunas } as CSSProperties
+  const chip = (on: boolean) =>
+    `rounded-lg px-2.5 py-1 font-sans text-xs font-semibold transition-colors ${on ? 'bg-mp-gold text-white' : 'text-mp-ink-soft hover:bg-mp-surface-muted'}`
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-mp-border bg-mp-surface p-2">
+        <span className="px-1 font-sans text-[10px] uppercase tracking-wide text-mp-ink-faint">Folha</span>
+        {todas.map((f) => (
+          <button key={f} onClick={() => onFolha(f)} className={chip(f === posicao.folha)}>{f}</button>
+        ))}
+        <button onClick={() => onFolha(maxFolha + 1)} className={chip(false)} title="Começar uma folha nova">+</button>
+        <label className="ml-auto flex items-center gap-2 px-1 font-sans text-xs text-mp-ink-soft">
+          <input type="checkbox" checked={soAFolha} onChange={(e) => setSoAFolha(e.target.checked)} className="h-4 w-4 accent-mp-gold" />
+          Mostrar só esta folha
+        </label>
+      </div>
+
       {folhas.map((f) => (
         <section key={f}>
           <h3 className="mb-2 font-sans text-xs font-semibold uppercase tracking-wide text-mp-ink-faint">

@@ -81,20 +81,23 @@ const chaveCasa = (p: { folha: number | null; linha: number | null; coluna: numb
   `${p.folha ?? 1}:${p.linha}:${p.coluna}`
 
 // Primeira casa livre: varre folha a folha, da esquerda para a direita e de cima
-// para baixo, como se arruma na realidade. Sem grelha definida, continua a contar
-// linhas na folha 1.
+// para baixo, como se arruma na realidade. Nunca recua antes de `desdeFolha` —
+// quem está a inserir fica na folha onde vai, mesmo que atrás tenha buracos.
+// Sem grelha definida, continua a contar linhas na folha 1.
 export function proximaPosicao(
   ocupadas: { folha: number | null; linha: number | null; coluna: number | null }[],
   linhas: number | null,
   colunas: number | null,
+  desdeFolha = 1,
 ): Posicao {
   const usadas = new Set(ocupadas.filter((o) => o.linha && o.coluna).map(chaveCasa))
   if (!linhas || !colunas) {
     const maxLinha = ocupadas.reduce((m, o) => Math.max(m, o.linha ?? 0), 0)
     return { folha: 1, linha: maxLinha + 1, coluna: 1 }
   }
-  const maxFolha = ocupadas.reduce((m, o) => Math.max(m, o.folha ?? 1), 1)
-  for (let f = 1; f <= maxFolha + 1; f++) {
+  const inicio = Math.max(1, desdeFolha)
+  const maxFolha = Math.max(inicio, ocupadas.reduce((m, o) => Math.max(m, o.folha ?? 1), 1))
+  for (let f = inicio; f <= maxFolha + 1; f++) {
     for (let l = 1; l <= linhas; l++) {
       for (let c = 1; c <= colunas; c++) {
         if (!usadas.has(`${f}:${l}:${c}`)) return { folha: f, linha: l, coluna: c }
