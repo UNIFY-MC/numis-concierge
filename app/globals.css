@@ -206,3 +206,16 @@ body {
   color: var(--mp-ink);
   font-family: var(--mp-font-sans);
 }
+
+/* Impressão: sai o que está no ecrã (a vista escolhida), com as cores e as
+   fotos das moedas — sem isto o browser descarta fundos e anéis. */
+@media print {
+  html, body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page { margin: 12mm; }
+  img { break-inside: avoid; }
+  table { font-size: 10px; }
+}

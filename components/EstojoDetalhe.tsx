@@ -9,7 +9,6 @@ import EstojoTabela from '@/components/EstojoTabela'
 import EstojoResumo from '@/components/EstojoResumo'
 import EstojoModal from '@/components/EstojoModal'
 import EstojoTrinco from '@/components/EstojoTrinco'
-import EstojoPrint from '@/components/EstojoPrint'
 import EstojoMoedaFicha from '@/components/EstojoMoedaFicha'
 import { eur } from '@/lib/valor'
 import {
@@ -108,8 +107,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
 
   return (
     <div className="w-full px-6 py-8">
-      <div className="print:hidden">
-      <Link href="/estojos" className="mb-4 inline-flex items-center gap-1 font-sans text-sm text-mp-ink-soft hover:text-mp-ink">
+      <Link href="/estojos" className="mb-4 inline-flex items-center gap-1 font-sans text-sm text-mp-ink-soft hover:text-mp-ink print:hidden">
         ← Estojos
       </Link>
 
@@ -147,20 +145,20 @@ export default function EstojoDetalhe({ id }: { id: string }) {
       </header>
 
       {estojo && !temGrelha && !bloqueado && (
-        <p className="mb-4 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft">
+        <p className="mb-4 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft print:hidden">
           Este estojo não tem grelha, por isso as moedas entram por ordem de chegada e não têm folha/linha/coluna.
           Carrega em <b className="text-mp-ink">Definir grelha</b> para dizer quantas linhas e colunas tem cada folha.
         </p>
       )}
 
       {bloqueado && (
-        <p className="mb-4 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft">
+        <p className="mb-4 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft print:hidden">
           Estojo fechado — em leitura. Carrega em <b className="text-mp-ink">Reabrir</b> e escreve o PIN para voltar a editar.
         </p>
       )}
 
       {!bloqueado && temGrelha && semCasa > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft">
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-mp-border bg-mp-surface-muted/50 px-4 py-3 font-sans text-xs text-mp-ink-soft print:hidden">
           <span>{semCasa} moedas ainda sem casa atribuída (entraram antes da grelha).</span>
           <button onClick={arrumar} className="rounded-lg bg-mp-gold px-3 py-1.5 font-semibold text-white hover:bg-mp-gold-strong">
             Arrumar nas casas livres
@@ -169,6 +167,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
       )}
 
       {!bloqueado && (
+        <div className="print:hidden">
         <EstojoQuickAdd
           estojoId={id}
           posicao={posicao}
@@ -177,7 +176,18 @@ export default function EstojoDetalhe({ id }: { id: string }) {
           proximaOrdem={proximaOrdem}
           onAdded={carregar}
         />
+        </div>
       )}
+
+      <p className="hidden print:block mb-3 font-sans text-[11px] text-mp-ink-soft">
+        {vista === 'resumo'
+          ? 'Resumo do estojo'
+          : temGrelha && soAFolha
+            ? `Folha ${folhaVista} de ${folhasUsadas}`
+            : 'Estojo completo'}
+        {' · '}
+        {new Date().toLocaleDateString('pt-PT')}
+      </p>
 
       {temGrelha && vista !== 'resumo' && (
         <EstojoFolhas
@@ -225,11 +235,7 @@ export default function EstojoDetalhe({ id }: { id: string }) {
           onRemover={remover}
         />
       )}
-      </div>
-
       {ficha && <EstojoMoedaFicha item={ficha} onClose={() => setFicha(null)} />}
-
-      {estojo && itens && <EstojoPrint estojo={estojo} itens={itens} />}
 
       {editar && estojo && (
         <EstojoModal

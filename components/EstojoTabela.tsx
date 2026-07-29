@@ -98,14 +98,14 @@ export default function EstojoTabela({
               <th key={c.campo} className={th + (c.direita ? ' text-right' : '')}>
                 <button
                   onClick={() => ordenarPor(c.campo)}
-                  className={`uppercase tracking-wide hover:text-mp-gold-strong ${ord.campo === c.campo ? 'text-mp-gold-strong' : ''}`}
+                  className={`uppercase tracking-wide hover:text-mp-gold-strong print:no-underline ${ord.campo === c.campo ? 'text-mp-gold-strong' : ''}`}
                 >
                   {c.label}
                   {ord.campo === c.campo && <span className="ml-1">{ord.desc ? '↓' : '↑'}</span>}
                 </button>
               </th>
             ))}
-            <th className={th}></th>
+            <th className={th + ' print:hidden'}></th>
           </tr>
         </thead>
         <tbody>
@@ -114,12 +114,13 @@ export default function EstojoTabela({
               <td className={td + ' font-serif font-semibold text-mp-gold'}>{idx + 1}</td>
               {temGrelha && (
                 <td className={td}>
-                  {bloqueado ? (
-                    <span className="text-mp-ink-soft">
-                      {i.linha && i.coluna ? `F${i.folha ?? 1} · L${i.linha} · C${i.coluna}` : '—'}
+                  <span className={bloqueado ? 'text-mp-ink-soft' : 'hidden text-mp-ink-soft print:inline'}>
+                    {i.linha && i.coluna ? `F${i.folha ?? 1} · L${i.linha} · C${i.coluna}` : '—'}
+                  </span>
+                  {!bloqueado && (
+                    <span className="print:hidden">
+                      <EstojoPosicao item={i} grelha={grelha} onGuardado={onRecarregar} />
                     </span>
-                  ) : (
-                    <EstojoPosicao item={i} grelha={grelha} onGuardado={onRecarregar} />
                   )}
                 </td>
               )}
@@ -135,10 +136,11 @@ export default function EstojoTabela({
               <td className={td + ' text-mp-ink-soft'}>{i.serie ?? '—'}</td>
               <td className={td + ' text-mp-ink-soft'}>{i.ano ?? '—'}</td>
               <td className={td + ' text-mp-ink-soft'}>
-                {bloqueado ? (
-                  i.variante ?? '—'
-                ) : (
-                  <EstojoVariante item={i} opcoes={variantes[i.coinId ?? ''] ?? []} onGuardado={onRecarregar} />
+                <span className={bloqueado ? '' : 'hidden print:inline'}>{i.variante ?? '—'}</span>
+                {!bloqueado && (
+                  <span className="print:hidden">
+                    <EstojoVariante item={i} opcoes={variantes[i.coinId ?? ''] ?? []} onGuardado={onRecarregar} />
+                  </span>
                 )}
               </td>
               <td className={td + ' text-mp-ink-soft'}>{formatoPt(i.formato)}</td>
@@ -148,7 +150,7 @@ export default function EstojoTabela({
                 {i.valorMercado != null ? eur(i.valorMercado * i.quantidade) : '—'}
               </td>
               <td className={td + ' text-right font-medium text-mp-ink'}>{i.quantidade}</td>
-              <td className={td + ' text-right'}>
+              <td className={td + ' text-right print:hidden'}>
                 {!bloqueado && (
                   <button onClick={() => onRemover(i.alocacaoId)} title="Retirar desta casa" className="rounded-lg px-2 py-1 text-xs text-mp-falta hover:bg-mp-falta-bg">
                     Retirar

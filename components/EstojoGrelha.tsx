@@ -134,7 +134,7 @@ function Casa({
               tabIndex={0}
               onClick={(e) => { e.stopPropagation(); onRemover(item.alocacaoId) }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onRemover(item.alocacaoId) } }}
-              className="absolute bottom-1 left-1 hidden rounded-md bg-mp-surface px-1.5 py-0.5 font-sans text-[10px] text-mp-falta hover:bg-mp-falta-bg group-hover:block"
+              className="absolute bottom-1 left-1 hidden rounded-md bg-mp-surface px-1.5 py-0.5 font-sans text-[10px] text-mp-falta hover:bg-mp-falta-bg group-hover:block print:!hidden"
             >
               Retirar
             </span>
