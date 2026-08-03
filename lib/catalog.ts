@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { normalizarCoin, normalizarExemplar, normalizarIssue } from './media'
 import type { CatalogCoin, CatalogIssue, CollectionItem } from './types'
 
 // Colunas do catálogo SEM o maktun_raw (jsonb pesado, ~uso interno): com 8900+
@@ -27,7 +28,7 @@ export async function getCatalogCoins(): Promise<CatalogCoin[]> {
     if (data.length < PAGE) break
     from += PAGE
   }
-  return all
+  return all.map(normalizarCoin)
 }
 
 // Catálogo de um país (leve, sem maktun_raw) — para a vista de coleção por série.
@@ -36,10 +37,11 @@ export async function getCatalogPais(paisCodigo: string): Promise<CatalogCoin[]>
   const { count, error } = await supabase
     .from('catalog_coins').select('id', { count: 'exact', head: true }).eq('pais_codigo', paisCodigo)
   if (error) throw error
-  return fetchAllParallel<CatalogCoin>(count ?? 0, (from, to) =>
+  const rows = await fetchAllParallel<CatalogCoin>(count ?? 0, (from, to) =>
     supabase.from('catalog_coins').select(COLS_COIN).eq('pais_codigo', paisCodigo)
       .order('serie_ord', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CatalogCoin[] | null; error: unknown }>,
   )
+  return rows.map(normalizarCoin)
 }
 
 // Resumo de países no catálogo (código, nome, nº de tipos) — agregado no servidor
@@ -79,7 +81,7 @@ export async function getColecaoCoinsIssues(tagId: string): Promise<{ coins: Cat
     coins.push(...((cs ?? []) as unknown as CatalogCoin[]))
     issues.push(...((is ?? []) as unknown as CatalogIssue[]))
   }
-  return { coins, issues }
+  return { coins: coins.map(normalizarCoin), issues: issues.map(normalizarIssue) }
 }
 
 // IDs das moedas que casam com um filtro de categoria — para atribuição em lote
@@ -112,7 +114,7 @@ export async function getCatalogByCountry(paisCodigo: string): Promise<CatalogCo
     .eq('pais_codigo', paisCodigo)
     .order('html_rank', { ascending: true })
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map((coin) => normalizarCoin(coin as CatalogCoin))
 }
 
 export async function getCatalogIssues(): Promise<CatalogIssue[]> {
@@ -131,7 +133,7 @@ export async function getCatalogIssues(): Promise<CatalogIssue[]> {
     if (data.length < PAGE) break
     from += PAGE
   }
-  return all
+  return all.map(normalizarIssue)
 }
 
 // Issues de um país (via inner join ao catalog_coins) — para a vista de coleção
@@ -141,11 +143,12 @@ export async function getIssuesPais(paisCodigo: string): Promise<CatalogIssue[]>
     .from('catalog_issues').select('id, catalog_coins!inner(pais_codigo)', { count: 'exact', head: true })
     .eq('catalog_coins.pais_codigo', paisCodigo)
   if (error) throw error
-  return fetchAllParallel<CatalogIssue>(count ?? 0, (from, to) =>
+  const rows = await fetchAllParallel<CatalogIssue>(count ?? 0, (from, to) =>
     supabase.from('catalog_issues').select('*, catalog_coins!inner(pais_codigo)')
       .eq('catalog_coins.pais_codigo', paisCodigo).order('ano_gregoriano', { ascending: true })
       .range(from, to) as unknown as PromiseLike<{ data: CatalogIssue[] | null; error: unknown }>,
   )
+  return rows.map(normalizarIssue)
 }
 
 export async function getIssuesForCoin(catalogCoinId: string): Promise<CatalogIssue[]> {
@@ -155,7 +158,7 @@ export async function getIssuesForCoin(catalogCoinId: string): Promise<CatalogIs
     .eq('catalog_coin_id', catalogCoinId)
     .order('ano_gregoriano', { ascending: true })
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map((issue) => normalizarIssue(issue as CatalogIssue))
 }
 
 // Preferências de UI (ex. colunas/ordenação da tabela). Sem localStorage — vive
@@ -209,9 +212,10 @@ async function fetchAllParallel<T>(
 async function fetchCollection(): Promise<CollectionItem[]> {
   const { count, error } = await supabase.from('collection').select('id', { count: 'exact', head: true })
   if (error) throw error
-  return fetchAllParallel<CollectionItem>(count ?? 0, (from, to) =>
+  const rows = await fetchAllParallel<CollectionItem>(count ?? 0, (from, to) =>
     supabase.from('collection').select('*').range(from, to),
   )
+  return rows.map(normalizarExemplar)
 }
 
 // Catálogo só do grupo de família activo (lazy) — evita descarregar o catálogo
@@ -232,7 +236,7 @@ async function fetchCoinsByFamilias(familias: string[]): Promise<CatalogCoin[]> 
     .select('id', { count: 'exact', head: true })
     .in('familia', familias)
   if (error) throw error
-  return fetchAllParallel<CatalogCoin>(count ?? 0, (from, to) =>
+  const rows = await fetchAllParallel<CatalogCoin>(count ?? 0, (from, to) =>
     supabase
       .from('catalog_coins')
       .select(COLS_COIN)
@@ -240,6 +244,7 @@ async function fetchCoinsByFamilias(familias: string[]): Promise<CatalogCoin[]> 
       .order('pais_nome', { ascending: true })
       .range(from, to) as unknown as PromiseLike<{ data: CatalogCoin[] | null; error: unknown }>,
   )
+  return rows.map(normalizarCoin)
 }
 
 export function getIssuesByFamilias(familias: string[]): Promise<CatalogIssue[]> {
@@ -254,7 +259,7 @@ export function getIssuesByFamilias(familias: string[]): Promise<CatalogIssue[]>
 
 async function fetchIssuesByFamilias(familias: string[]): Promise<CatalogIssue[]> {
   const total = await countIssuesByFamilias(familias)
-  return fetchAllParallel<CatalogIssue>(total, (from, to) =>
+  const rows = await fetchAllParallel<CatalogIssue>(total, (from, to) =>
     supabase
       .from('catalog_issues')
       .select('*, catalog_coins!inner(familia)')
@@ -262,6 +267,7 @@ async function fetchIssuesByFamilias(familias: string[]): Promise<CatalogIssue[]
       .order('ano_gregoriano', { ascending: true })
       .range(from, to) as unknown as PromiseLike<{ data: CatalogIssue[] | null; error: unknown }>,
   )
+  return rows.map(normalizarIssue)
 }
 
 // Contagem de variantes por grupo (para os separadores) — sem trazer linhas.

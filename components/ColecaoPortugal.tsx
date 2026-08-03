@@ -12,6 +12,7 @@ import { denomLimpa, temaLimpo } from '@/lib/numis-texto'
 import { CONTEXTO } from '@/lib/data/contexto-pt'
 import { itemPrincipal } from '@/lib/types'
 import { valorMercadoGrau, eur } from '@/lib/valor'
+import { normalizarUrlImagem } from '@/lib/media'
 import type { CatalogCoin, CatalogIssue, CollectionItem, DisplayRow, FormatoColecao, EstojoTag } from '@/lib/types'
 
 // Estojos onde os exemplares de uma moeda estão (união, sem repetir nome).
@@ -454,7 +455,7 @@ function CartaoSerie({ nome, coins, tenho, valor, onAbrir }: {
   const meus = coins.filter((c) => tenho.has(c.id)).length
   const pct = coins.length ? Math.round((meus / coins.length) * 100) : 0
   const valorSerie = coins.reduce((s, c) => s + (valor.get(c.id) ?? 0), 0)
-  const retrato = RETRATOS[nome]
+  const retrato = normalizarUrlImagem(RETRATOS[nome])
   // sem retrato (séries não-reinado, ou reinados medievais sem foto): usa a foto
   // de uma moeda representativa da série (a de maior valor facial com imagem).
   const fotoMoeda = retrato ? null

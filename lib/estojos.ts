@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { invalidateCollection } from './catalog'
+import { normalizarUrlImagem } from './media'
 import type { EstojoTag } from './types'
 
 export interface Estojo {
@@ -895,8 +896,8 @@ export async function getConteudoEstojo(estojoId: string): Promise<EstojoConteud
         formato: r.collection!.formato_posse,
         grau: r.collection!.grau,
         // Foto do exemplar primeiro; depois a da variante; por fim a do tipo.
-        anverso: r.collection!.foto1 ?? i?.anverso_img ?? c?.anverso_img ?? null,
-        reverso: i?.reverso_img ?? c?.reverso_img ?? null,
+        anverso: normalizarUrlImagem(r.collection!.foto1 ?? i?.anverso_img ?? c?.anverso_img),
+        reverso: normalizarUrlImagem(i?.reverso_img ?? c?.reverso_img),
       }
     })
     .sort(ordenarPorCasa)
